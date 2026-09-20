@@ -120,6 +120,7 @@ service cloud.firestore {
                 && request.resource.data.statusPembayaran in ['menunggu_konfirmasi', 'menunggu_verifikasi', 'lunas', 'ditolak']
                 && request.resource.data.pembayaran.status == request.resource.data.statusPembayaran
                 && request.resource.data.pembayaran.dikonfirmasiPelanggan == resource.data.pembayaran.dikonfirmasiPelanggan
+                && request.resource.data.pembayaran.diff(resource.data.pembayaran).affectedKeys().hasOnly(['status', 'diverifikasiOleh', 'diverifikasiAt'])
               )
             )
           )
@@ -136,6 +137,7 @@ service cloud.firestore {
             && request.resource.data.statusPembayaran == 'menunggu_verifikasi'
             && request.resource.data.pembayaran.status == 'menunggu_verifikasi'
             && request.resource.data.pembayaran.dikonfirmasiPelanggan == true
+            && request.resource.data.pembayaran.diff(resource.data.pembayaran).affectedKeys().hasOnly(['status', 'dikonfirmasiPelanggan'])
           );
 
         allow delete: if isAdminFor(tokoId);
