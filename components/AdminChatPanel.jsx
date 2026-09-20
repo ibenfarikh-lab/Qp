@@ -17,6 +17,7 @@ export default function AdminChatPanel({ tokoId, authUser }) {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState('');
 
   const selectedChat = useMemo(
@@ -27,6 +28,7 @@ export default function AdminChatPanel({ tokoId, authUser }) {
   useEffect(() => {
     if (!tokoId) return undefined;
     setLoading(true);
+    setError('');
     return subscribeChats(tokoId, (rows) => {
       rows.sort((a, b) => {
         const at = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : new Date(a.updatedAt || 0).getTime();
@@ -46,8 +48,11 @@ export default function AdminChatPanel({ tokoId, authUser }) {
   useEffect(() => {
     if (!tokoId || !selectedId) {
       setMessages([]);
+      setMessagesLoading(false);
       return undefined;
     }
+    setMessagesLoading(true);
+    setError('');
     const unsubscribe = subscribeChatMessages(tokoId, selectedId, (rows) => {
       rows.sort((a, b) => {
         const at = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
@@ -55,6 +60,12 @@ export default function AdminChatPanel({ tokoId, authUser }) {
         return at - bt;
       });
       setMessages(rows);
+      setMessagesLoading(false);
+    }, (snapshotError) => {
+      console.error('[QP Admin Chat] Gagal membaca pesan:', snapshotError);
+      setMessages([]);
+      setMessagesLoading(false);
+      setError('Pesan percakapan belum dapat dibuka. Periksa izin Firestore.');
     });
 
     markChatRead(tokoId, selectedId).catch(() => {});
@@ -124,7 +135,9 @@ export default function AdminChatPanel({ tokoId, authUser }) {
                 <div><b>{selectedChat.namaPelanggan || 'Pelanggan'}</b><small>{selectedChat.emailPelanggan || selectedChat.id}</small></div>
               </div>
               <div className="admin-chat-thread">
-                {messages.map((message) => {
+                {messagesLoading && <div className="admin-chat-empty">Memuat pesan...</div>}
+                {!messagesLoading && !messages.length && <div className="admin-chat-empty">Belum ada pesan.</div>}
+                {!messagesLoading && messages.map((message) => {
                   const mine = message.senderRole === 'admin' || message.senderId === authUser?.uid;
                   return (
                     <div key={message.id} className={`chat-message-row ${mine ? 'mine' : 'theirs'}`}>

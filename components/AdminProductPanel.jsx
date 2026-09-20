@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { subscribeProducts, subscribeCategories, saveProduct, setProductActive, deleteProduct } from '../lib/services/productService';
+import { subscribeProducts, subscribeCategories, saveProduct as saveProductService, setProductActive, deleteProduct } from '../lib/services/productService';
 
 const EMPTY_FORM = {
   nama: '', harga: '', stok: '', satuan: 'pcs', kategoriId: '', foto: '', deskripsi: '', aktif: true,
@@ -62,7 +62,7 @@ export default function AdminProductPanel({ tokoId, authUser }) {
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const saveProduct = async (event) => {
+  const handleSaveProduct = async (event) => {
     event.preventDefault();
     if (!tokoId || !authUser || saving) return;
     const nama = form.nama.trim();
@@ -78,7 +78,7 @@ export default function AdminProductPanel({ tokoId, authUser }) {
         nama, harga, hargaJual: harga, stok, satuan: form.satuan.trim() || 'pcs', kategoriId: form.kategoriId || null,
         foto: form.foto.trim() || '', deskripsi: form.deskripsi.trim() || '', aktif: Boolean(form.aktif),
       };
-      await saveProduct(tokoId, selectedId, payload, authUser.uid);
+      await saveProductService(tokoId, selectedId, payload, authUser.uid);
       setEditing(false); setSelectedId(null); setForm(EMPTY_FORM);
     } catch (err) {
       console.error('[QP Admin Products] Simpan:', err); setError('Produk belum tersimpan. Periksa izin Firestore.');
@@ -137,7 +137,7 @@ export default function AdminProductPanel({ tokoId, authUser }) {
         </div>
 
         {editing && (
-          <form className="admin-product-form" onSubmit={saveProduct}>
+          <form className="admin-product-form" onSubmit={handleSaveProduct}>
             <div className="admin-product-form-head"><h3>{selectedId ? 'Edit Produk' : 'Produk Baru'}</h3><button type="button" onClick={() => { setEditing(false); setSelectedId(null); }}>✕</button></div>
             <label>Nama produk<input value={form.nama} onChange={(e) => setField('nama', e.target.value)} required /></label>
             <div className="admin-product-form-grid">

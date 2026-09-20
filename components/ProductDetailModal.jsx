@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin }) {
   const [qty, setQty] = useState(1);
@@ -8,6 +8,10 @@ export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin
   const harga = Number(product?.hargaJual || product?.harga || 0);
   const stok = Number(product?.stok || 0);
   const total = useMemo(() => harga * qty, [harga, qty]);
+
+  useEffect(() => {
+    setQty(1);
+  }, [product?.id]);
 
   if (!product) return null;
 

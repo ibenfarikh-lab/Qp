@@ -35,6 +35,7 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
   useEffect(() => {
     if (!tokoId) return undefined;
     setLoading(true);
+    setError('');
     return subscribeOrders(tokoId, (rows) => {
       rows.sort((a, b) => {
         const at = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
@@ -73,6 +74,8 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
         setError(`Status belum diubah karena stok tidak cukup. ${String(updateError.message).replace('STOCK_SHORTAGE:', '')}`);
       } else if (updateError?.message === 'ORDER_NOT_FOUND') {
         setError('Pesanan sudah tidak tersedia. Muat ulang daftar pesanan.');
+      } else if (updateError?.message === 'INVALID_STATUS_TRANSITION') {
+        setError('Perubahan status tersebut tidak diperbolehkan dari status pesanan saat ini.');
       } else {
         setError('Status pesanan belum berubah. Stok juga tidak diubah. Coba lagi.');
       }
@@ -88,14 +91,20 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
       setError('Status pembayaran hanya dapat diverifikasi untuk pesanan transfer.');
       return;
     }
-    if (!['lunas', 'ditolak', 'menunggu_verifikasi'].includes(nextStatus)) return;
+    if (!['menunggu_konfirmasi', 'menunggu_verifikasi', 'lunas', 'ditolak'].includes(nextStatus)) return;
     setPaymentSaving(true);
     setError('');
     try {
       await updatePaymentStatus(tokoId, selectedOrder, nextStatus, authUser.uid);
     } catch (err) {
       console.error('[QP Admin Orders] Gagal mengubah pembayaran:', err);
-      setError('Status pembayaran belum berubah. Periksa izin Firestore.');
+      if (err?.message === 'PAYMENT_NOT_TRANSFER') {
+        setError('Status pembayaran hanya dapat diverifikasi untuk pesanan transfer.');
+      } else if (err?.message === 'INVALID_PAYMENT_STATUS') {
+        setError('Status pembayaran tidak valid.');
+      } else {
+        setError('Status pembayaran belum berubah. Periksa izin Firestore.');
+      }
     } finally {
       setPaymentSaving(false);
     }
@@ -160,7 +169,8 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
                   <div className="admin-order-payment-actions">
                     <button type="button" disabled={paymentSaving} className={(selectedOrder.statusPembayaran === 'lunas' || selectedOrder.pembayaran?.status === 'lunas') ? 'active' : ''} onClick={() => updatePaymentStatus('lunas')}>✓ Tandai Lunas</button>
                     <button type="button" disabled={paymentSaving} className={(selectedOrder.statusPembayaran === 'ditolak' || selectedOrder.pembayaran?.status === 'ditolak') ? 'active danger' : ''} onClick={() => updatePaymentStatus('ditolak')}>✕ Tolak</button>
-                    <button type="button" disabled={paymentSaving} onClick={() => updatePaymentStatus('menunggu_verifikasi')}>↻ Menunggu Verifikasi</button>
+                    <button type="button" disabled={paymentSaving} className={(selectedOrder.statusPembayaran === 'menunggu_konfirmasi' || selectedOrder.pembayaran?.status === 'menunggu_konfirmasi') ? 'active' : ''} onClick={() => updatePaymentStatus('menunggu_konfirmasi')}>↶ Menunggu Konfirmasi</button>
+                    <button type="button" disabled={paymentSaving} className={(selectedOrder.statusPembayaran === 'menunggu_verifikasi' || selectedOrder.pembayaran?.status === 'menunggu_verifikasi') ? 'active' : ''} onClick={() => updatePaymentStatus('menunggu_verifikasi')}>↻ Menunggu Verifikasi</button>
                   </div>
                 </div>
               )}

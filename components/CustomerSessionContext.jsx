@@ -39,6 +39,9 @@ export function CustomerSessionProvider({ children }) {
           window.location.replace('/admin');
           return;
         }
+        if (String(pengguna.status || '').toLowerCase() !== 'aktif') {
+          throw new Error('Akun pelanggan belum aktif. Silakan hubungi toko.');
+        }
         if (!pengguna.tokoId) {
           throw new Error('Akun ini belum memiliki tokoId.');
         }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { subscribeStoreSettings } from '../lib/services/storeService';
 import { saveStoreSettings } from '../lib/services/settingsService';
-import { addCategory, updateCategory, deleteCategory } from '../lib/services/productService';
+import { addCategory as addCategoryService, updateCategory, deleteCategory as deleteCategoryService } from '../lib/services/productService';
 
 const DEFAULT_SETTINGS = {
   tampilkanStok: true,
@@ -27,6 +27,7 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
   const [categoryForm, setCategoryForm] = useState({ nama: '', ikon: '🏷️', urutan: 0, aktif: true });
   const [saving, setSaving] = useState(false);
   const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryDeleting, setCategoryDeleting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -61,14 +62,14 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
     } finally { setSaving(false); }
   };
 
-  const addCategory = async (event) => {
+  const handleAddCategory = async (event) => {
     event.preventDefault();
     const nama = newCategory.nama.trim();
     if (!nama || categorySaving) return;
     setCategorySaving(true); setError(''); setMessage('');
     try {
       const maxOrder = categories.reduce((max, item) => Math.max(max, Number(item.urutan || 0)), 0);
-      await addCategory(tokoId, { nama, ikon: newCategory.ikon.trim() || '🏷️', urutan: maxOrder + 1, aktif: true }, authUser.uid);
+      await addCategoryService(tokoId, { nama, ikon: newCategory.ikon.trim() || '🏷️', urutan: maxOrder + 1, aktif: true }, authUser.uid);
       setNewCategory({ nama: '', ikon: '🏷️' }); setMessage('Kategori ditambahkan.');
     } catch (err) { console.error('[QP Settings] Tambah kategori:', err); setError('Kategori belum dapat ditambahkan.'); }
     finally { setCategorySaving(false); }
@@ -89,12 +90,15 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
     finally { setCategorySaving(false); }
   };
 
-  const deleteCategory = async (id) => {
-    if (!window.confirm('Hapus kategori ini? Produk yang memakai kategori ini tidak ikut terhapus.')) return;
+  const handleDeleteCategory = async (id) => {
+    if (categoryDeleting || !window.confirm('Hapus kategori ini? Produk yang memakai kategori ini tidak ikut terhapus.')) return;
+    setCategoryDeleting(true);
+    setError(''); setMessage('');
     try {
-      await deleteCategory(tokoId, id);
+      await deleteCategoryService(tokoId, id);
       setMessage('Kategori dihapus.');
     } catch (err) { console.error('[QP Settings] Hapus kategori:', err); setError('Kategori belum dapat dihapus.'); }
+    finally { setCategoryDeleting(false); }
   };
 
   return (
@@ -133,13 +137,13 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
 
       <section className="admin-settings-card">
         <div className="admin-settings-card-head"><div><h2>🏷️ Kategori Produk</h2><span>{categories.length} kategori</span></div></div>
-        <form className="admin-category-add" onSubmit={addCategory}><input value={newCategory.nama} onChange={(e) => setNewCategory({ ...newCategory, nama: e.target.value })} placeholder="Nama kategori baru" required /><input value={newCategory.ikon} onChange={(e) => setNewCategory({ ...newCategory, ikon: e.target.value })} aria-label="Ikon kategori" maxLength="4" /><button type="submit" disabled={categorySaving}>＋ Tambah</button></form>
+        <form className="admin-category-add" onSubmit={handleAddCategory}><input value={newCategory.nama} onChange={(e) => setNewCategory({ ...newCategory, nama: e.target.value })} placeholder="Nama kategori baru" required /><input value={newCategory.ikon} onChange={(e) => setNewCategory({ ...newCategory, ikon: e.target.value })} aria-label="Ikon kategori" maxLength="4" /><button type="submit" disabled={categorySaving}>＋ Tambah</button></form>
         <div className="admin-category-list">
           {!categories.length && <div className="admin-settings-empty">Belum ada kategori.</div>}
           {categories.map((item) => editingCategory === item.id ? (
             <form key={item.id} className="admin-category-row editing" onSubmit={saveCategory}><input value={categoryForm.ikon} onChange={(e) => setCategoryForm({ ...categoryForm, ikon: e.target.value })} maxLength="4" /><input value={categoryForm.nama} onChange={(e) => setCategoryForm({ ...categoryForm, nama: e.target.value })} required /><input type="number" value={categoryForm.urutan} onChange={(e) => setCategoryForm({ ...categoryForm, urutan: e.target.value })} min="0" aria-label="Urutan" /><label><input type="checkbox" checked={categoryForm.aktif} onChange={(e) => setCategoryForm({ ...categoryForm, aktif: e.target.checked })} /> aktif</label><button type="submit" disabled={categorySaving}>Simpan</button><button type="button" onClick={() => setEditingCategory(null)}>Batal</button></form>
           ) : (
-            <article key={item.id} className={`admin-category-row ${item.aktif === false ? 'off' : ''}`}><span className="admin-category-icon">{item.ikon || '🏷️'}</span><span><b>{item.nama || item.id}</b><small>urutan {Number(item.urutan || 0)} • {item.aktif === false ? 'nonaktif' : 'aktif'}</small></span><div><button type="button" onClick={() => startEditCategory(item)}>Edit</button><button type="button" className="danger" onClick={() => deleteCategory(item.id)}>Hapus</button></div></article>
+            <article key={item.id} className={`admin-category-row ${item.aktif === false ? 'off' : ''}`}><span className="admin-category-icon">{item.ikon || '🏷️'}</span><span><b>{item.nama || item.id}</b><small>urutan {Number(item.urutan || 0)} • {item.aktif === false ? 'nonaktif' : 'aktif'}</small></span><div><button type="button" onClick={() => startEditCategory(item)}>Edit</button><button type="button" className="danger" onClick={() => handleDeleteCategory(item.id)}>Hapus</button></div></article>
           ))}
         </div>
       </section>

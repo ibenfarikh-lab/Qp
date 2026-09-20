@@ -16,6 +16,7 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [sendError, setSendError] = useState('');
   const bottomRef = useRef(null);
 
   const chatId = authUser?.uid || null;
@@ -36,6 +37,7 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
 
     setLoading(true);
     setError('');
+    setSendError('');
     return subscribeChatMessages(tokoId, chatId, (data) => {
       data.sort((a, b) => {
         const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
@@ -61,13 +63,13 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
     if (!text || !chatRef || sending) return;
 
     setSending(true);
-    setError('');
+    setSendError('');
     try {
       await sendCustomerMessage(tokoId, authUser, text);
       setDraft('');
     } catch (sendError) {
       console.error('[QP] Gagal mengirim chat:', sendError);
-      setError('Pesan belum terkirim. Coba lagi.');
+      setSendError('Pesan belum terkirim. Coba lagi.');
     } finally {
       setSending(false);
     }
@@ -109,6 +111,8 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
         <div ref={bottomRef} />
       </div>
 
+      {sendError && <div className="chat-error" role="alert">{sendError}</div>}
+
       <form className="chat-composer" onSubmit={sendMessage}>
         <input
           value={draft}
@@ -116,9 +120,9 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
           placeholder="Tulis pesan ke admin..."
           aria-label="Pesan ke admin toko"
           maxLength={1000}
-          disabled={!chatRef || sending}
+          disabled={!chatRef || sending || !!error}
         />
-        <button type="submit" disabled={!draft.trim() || sending || !chatRef} aria-label="Kirim pesan">
+        <button type="submit" disabled={!draft.trim() || sending || !chatRef || !!error} aria-label="Kirim pesan">
           {sending ? '…' : '➤'}
         </button>
       </form>

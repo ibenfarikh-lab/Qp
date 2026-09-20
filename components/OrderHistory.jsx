@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { subscribeCustomerOrders, confirmCustomerTransfer } from '../lib/services/orderService';
 
+const PAYMENT_STATUS = {
+  menunggu_konfirmasi: { label: 'Menunggu konfirmasi', icon: '⏳' },
+  menunggu_verifikasi: { label: 'Menunggu verifikasi', icon: '🔎' },
+  lunas: { label: 'Lunas', icon: '✅' },
+  ditolak: { label: 'Ditolak', icon: '❌' },
+};
+
 const STATUS = {
   menunggu: { label: 'Menunggu', icon: '⏳' },
   diproses: { label: 'Diproses', icon: '👨‍🍳' },
@@ -113,9 +120,27 @@ export default function OrderHistory({ tokoId, uid }) {
                 </div>
 
                 <div className="order-card-bottom">
-                  <span>{order.jumlahItem || 0} item • {order.metodePembayaran === 'transfer' ? 'Transfer' : 'Bayar saat menerima'}</span>
+                  <div>
+                    <span>{order.jumlahItem || 0} item • {order.metodePembayaran === 'transfer' ? 'Transfer' : 'Bayar saat menerima'}</span>
+                    {order.metodePembayaran === 'transfer' && (() => {
+                      const payment = PAYMENT_STATUS[order.statusPembayaran || order.pembayaran?.status] || { label: 'Menunggu pembayaran', icon: '⏳' };
+                      return <small>{payment.icon} {payment.label}</small>;
+                    })()}
+                  </div>
                   <strong>Rp {Number(order.total || 0).toLocaleString('id-ID')}</strong>
                 </div>
+                {order.metodePembayaran === 'transfer'
+                  && (order.statusPembayaran || order.pembayaran?.status) === 'menunggu_konfirmasi'
+                  && (
+                  <button
+                    type="button"
+                    className="order-confirm-transfer"
+                    onClick={() => confirmTransfer(order)}
+                    disabled={confirmingId === order.id}
+                  >
+                    {confirmingId === order.id ? 'Mengirim konfirmasi...' : 'Saya sudah transfer'}
+                  </button>
+                )}
               </article>
             );
           })}

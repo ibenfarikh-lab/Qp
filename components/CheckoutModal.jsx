@@ -25,15 +25,24 @@ export default function CheckoutModal({
   const [catatan, setCatatan] = useState('');
   const [metode, setMetode] = useState('cod');
   const [transferConfig, setTransferConfig] = useState({ bank: '', nomor: '', atasNama: '' });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successCode, setSuccessCode] = useState('');
 
   useEffect(() => {
     if (!isOpen || !tokoId) return undefined;
+    setPaymentLoading(true);
+    setPaymentError('');
     return subscribePaymentSettings(tokoId, (data) => {
       setTransferConfig({ bank: '', nomor: '', atasNama: '', ...data });
-    }, (err) => console.error('[QP Checkout] Gagal membaca pengaturan pembayaran:', err));
+      setPaymentLoading(false);
+    }, (err) => {
+      console.error('[QP Checkout] Gagal membaca pengaturan pembayaran:', err);
+      setPaymentError('Pengaturan pembayaran toko belum dapat dibaca.');
+      setPaymentLoading(false);
+    });
   }, [isOpen, tokoId]);
 
   if (!isOpen) return null;
@@ -52,6 +61,14 @@ export default function CheckoutModal({
     }
     if (!nama.trim() || !telepon.trim()) {
       setError('Nama dan nomor WhatsApp wajib diisi.');
+      return;
+    }
+    if (!['cod', 'transfer'].includes(metode)) {
+      setError('Metode pembayaran tidak valid.');
+      return;
+    }
+    if (metode === 'transfer' && paymentError) {
+      setError('Pengaturan transfer toko belum dapat dibaca. Coba tutup checkout lalu buka kembali.');
       return;
     }
 
@@ -92,6 +109,7 @@ export default function CheckoutModal({
     setMetode('cod');
     setError('');
     setSuccessCode('');
+    setPaymentError('');
     onOrderCreated?.();
   };
 
@@ -148,6 +166,9 @@ export default function CheckoutModal({
               </select>
             </label>
 
+            {paymentLoading && <div className="checkout-muted">Memuat pengaturan pembayaran toko...</div>}
+            {paymentError && <div className="checkout-error" role="alert">{paymentError}</div>}
+
             {metode === 'transfer' && (transferConfig.bank || transferConfig.nomor || transferConfig.atasNama) && (
               <div className="checkout-transfer-box">
                 <strong>💳 Detail transfer</strong>
@@ -165,7 +186,7 @@ export default function CheckoutModal({
 
             {error && <div className="checkout-error" role="alert">{error}</div>}
 
-            <button type="submit" className="checkout-primary" disabled={saving}>
+            <button type="submit" className="checkout-primary" disabled={saving || paymentLoading}>
               {saving ? 'Menyimpan pesanan...' : '✓ Kirim Pesanan'}
             </button>
           </form>
