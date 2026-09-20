@@ -1,7 +1,7 @@
 // Lokasi file: components/CartModal.jsx
 'use client';
 
-export default function CartModal({ isOpen, onClose, cart, updateQty }) {
+export default function CartModal({ isOpen, onClose, cart, updateQty, onCheckout }) {
   // Kalau modal tidak sedang dibuka, jangan render apa-apa
   if (!isOpen) return null;
 
@@ -56,8 +56,13 @@ export default function CartModal({ isOpen, onClose, cart, updateQty }) {
             <span>Total:</span> <span style={{ color: '#16a34a' }}>Rp {grandTotal.toLocaleString('id-ID')}</span>
           </div>
           
-          <button className="btn-success" style={{ background: '#16a34a', color: 'white', padding: '10px', borderRadius: '6px', width: '100%', marginTop: '10px', border: 'none', fontWeight: 'bold' }}>
-            🛒 Pesan Sekarang (WhatsApp)
+          <button
+            className="btn-success"
+            onClick={onCheckout}
+            disabled={!cart.length}
+            style={{ background: cart.length ? '#16a34a' : '#94a3b8', color: 'white', padding: '10px', borderRadius: '6px', width: '100%', marginTop: '10px', border: 'none', fontWeight: 'bold', cursor: cart.length ? 'pointer' : 'not-allowed' }}
+          >
+            🛒 Lanjut Pesanan
           </button>
         </div>
 
