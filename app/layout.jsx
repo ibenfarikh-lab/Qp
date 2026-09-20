@@ -11,11 +11,4 @@ export default function RootLayout({ children }) {
       <body>{children}</body>
     </html>
   );
-}            </p>
-          </div>
-        </footer>
-
-      </body>
-    </html>
-  );
 }
