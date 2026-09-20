@@ -42,6 +42,13 @@ service cloud.firestore {
         && myTokoId() == tokoId;
     }
 
+    function paymentTransitionAllowed(currentStatus, nextStatus) {
+      return currentStatus == nextStatus
+        || (currentStatus == 'menunggu_konfirmasi' && nextStatus == 'menunggu_verifikasi')
+        || (currentStatus == 'menunggu_verifikasi' && nextStatus in ['menunggu_konfirmasi', 'lunas', 'ditolak'])
+        || (currentStatus == 'ditolak' && nextStatus == 'menunggu_verifikasi');
+    }
+
     match /pengguna/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       // Bootstrap registrasi admin: tokoId dikunci sama dengan UID sehingga
@@ -62,26 +69,57 @@ service cloud.firestore {
         && myUserAfter().role == 'admin'
         && myUserAfter().tokoId == tokoId
         && request.resource.data.pemilikUid == request.auth.uid;
-      allow update, delete: if isAdminFor(tokoId);
+      allow update: if isAdminFor(tokoId)
+        && resource.data.pemilikUid == request.auth.uid
+        && request.resource.data.pemilikUid == resource.data.pemilikUid;
+      allow delete: if isAdminFor(tokoId) && resource.data.pemilikUid == request.auth.uid;
 
       match /identitas/{docId} {
         allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
-        allow write: if isAdminFor(tokoId) || isAdminForAfter(tokoId);
+        allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
+          && request.resource.data.keys().hasOnly(['namaToko', 'logo', 'alamat', 'telepon', 'updatedAt', 'updatedBy']);
+        allow update: if isAdminFor(tokoId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'namaToko', 'logo', 'alamat', 'telepon', 'updatedAt', 'updatedBy'
+          ]);
+        allow delete: if isAdminFor(tokoId);
       }
 
       match /pengaturan/{docId} {
         allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
-        allow write: if isAdminFor(tokoId) || isAdminForAfter(tokoId);
+        allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
+          && ((docId == 'pembayaran' && request.resource.data.keys().hasOnly(['bank', 'nomor', 'atasNama', 'updatedAt', 'updatedBy']))
+            || (docId == 'beranda' && request.resource.data.keys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'updatedAt', 'updatedBy'])));
+        allow update: if isAdminFor(tokoId)
+          && ((docId == 'pembayaran' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bank', 'nomor', 'atasNama', 'updatedAt', 'updatedBy']))
+            || (docId == 'beranda' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'updatedAt', 'updatedBy'])));
+        allow delete: if isAdminFor(tokoId);
       }
 
       match /kategori/{kategoriId} {
         allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
-        allow create, update, delete: if isAdminFor(tokoId) || isAdminForAfter(tokoId);
+        allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
+          && request.resource.data.keys().hasOnly(['nama', 'ikon', 'urutan', 'aktif', 'createdAt', 'updatedAt', 'updatedBy']);
+        allow update: if isAdminFor(tokoId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nama', 'ikon', 'urutan', 'aktif', 'updatedAt', 'updatedBy'
+          ])
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isAdminFor(tokoId);
       }
 
       match /produk/{produkId} {
         allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
-        allow create, update, delete: if isAdminFor(tokoId) || isAdminForAfter(tokoId);
+        allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
+          && request.resource.data.keys().hasOnly(['nama', 'harga', 'hargaJual', 'stok', 'satuan', 'kategoriId', 'foto', 'deskripsi', 'aktif', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'stokTerakhirBerubah', 'stokSumber']);
+        allow update: if isAdminFor(tokoId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nama', 'harga', 'hargaJual', 'stok', 'satuan', 'kategoriId', 'foto', 'deskripsi', 'aktif',
+            'updatedAt', 'updatedBy', 'stokTerakhirBerubah', 'stokSumber'
+          ])
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.createdBy == resource.data.createdBy;
+        allow delete: if isAdminFor(tokoId);
       }
 
       match /pesanan/{orderId} {
@@ -118,6 +156,10 @@ service cloud.firestore {
                 resource.data.metodePembayaran == 'transfer'
                 && request.resource.data.metodePembayaran == 'transfer'
                 && request.resource.data.statusPembayaran in ['menunggu_konfirmasi', 'menunggu_verifikasi', 'lunas', 'ditolak']
+                && paymentTransitionAllowed(
+                  resource.data.statusPembayaran,
+                  request.resource.data.statusPembayaran
+                )
                 && request.resource.data.pembayaran.status == request.resource.data.statusPembayaran
                 && request.resource.data.pembayaran.dikonfirmasiPelanggan == resource.data.pembayaran.dikonfirmasiPelanggan
                 && request.resource.data.pembayaran.diff(resource.data.pembayaran).affectedKeys().hasOnly(['status', 'diverifikasiOleh', 'diverifikasiAt'])
@@ -134,6 +176,7 @@ service cloud.firestore {
             && request.resource.data.items == resource.data.items
             && request.resource.data.total == resource.data.total
             && request.resource.data.metodePembayaran == 'transfer'
+            && resource.data.statusPembayaran == 'menunggu_konfirmasi'
             && request.resource.data.statusPembayaran == 'menunggu_verifikasi'
             && request.resource.data.pembayaran.status == 'menunggu_verifikasi'
             && request.resource.data.pembayaran.dikonfirmasiPelanggan == true
@@ -152,7 +195,14 @@ service cloud.firestore {
           && request.resource.data.uidPelanggan == request.auth.uid
           && request.resource.data.tokoId == tokoId;
 
-        allow update: if isAdminFor(tokoId)
+        allow update: if (
+            isAdminFor(tokoId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'lastMessage', 'lastSender', 'updatedAt', 'unreadByAdmin', 'unreadByCustomer'
+            ])
+            && request.resource.data.tokoId == resource.data.tokoId
+            && request.resource.data.uidPelanggan == resource.data.uidPelanggan
+          )
           || (
             isCustomerFor(tokoId)
             && chatId == request.auth.uid
@@ -172,7 +222,12 @@ service cloud.firestore {
           allow read: if isAdminFor(tokoId)
             || (isCustomerFor(tokoId) && chatId == request.auth.uid);
 
-          allow create: if isAdminFor(tokoId)
+          allow create: if (
+              isAdminFor(tokoId)
+              && request.resource.data.senderId == request.auth.uid
+              && request.resource.data.senderRole == 'admin'
+              && request.resource.data.tokoId == tokoId
+            )
             || (
               isCustomerFor(tokoId)
               && chatId == request.auth.uid
