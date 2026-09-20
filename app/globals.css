@@ -246,3 +246,145 @@ body {
 .fab-main:active {
   transform: scale(0.9);
 }
+
+/* =========================================
+   LAYOUT MODERN - KASIRQUH
+   ========================================= */
+html {
+  min-height: 100%;
+  background: #07101f;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, .16), transparent 28%),
+    radial-gradient(circle at 90% 100%, rgba(14, 165, 233, .10), transparent 30%),
+    #07101f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-background {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.app-orb {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  filter: blur(55px);
+  opacity: .18;
+}
+
+.app-orb-one {
+  top: 8%;
+  left: -90px;
+  background: #2563eb;
+}
+
+.app-orb-two {
+  right: -90px;
+  bottom: 12%;
+  background: #06b6d4;
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 760px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+.main-content {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: 0;
+}
+
+/* Sedikit penyempurnaan header agar menyatu dengan layout */
+.customer-home-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(circle at 85% 15%, rgba(255,255,255,.18), transparent 28%),
+    linear-gradient(135deg, #2563eb 0%, #1d4ed8 55%, #0f3ea8 100%);
+}
+
+.customer-home-header::after {
+  content: '';
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  right: -65px;
+  top: -70px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 0 0 18px rgba(255,255,255,.035), 0 0 0 38px rgba(255,255,255,.025);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Kartu katalog sedikit lebih premium tanpa mengubah struktur produk */
+.product-catalog-grid {
+  padding: 6px 2px 20px;
+}
+
+.modern-product-card {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.modern-product-card:active {
+  transform: scale(.975);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .modern-product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .28), 0 0 16px rgba(37,99,235,.16);
+    border-color: rgba(96,165,250,.65);
+  }
+}
+
+@media (min-width: 760px) {
+  .app-shell {
+    border-left: 1px solid rgba(255,255,255,.04);
+    border-right: 1px solid rgba(255,255,255,.04);
+    box-shadow: 0 0 60px rgba(0,0,0,.20);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-product-card,
+  .fab-main {
+    transition: none !important;
+  }
+}
