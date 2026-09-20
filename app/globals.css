@@ -1,0 +1,248 @@
+/* Lokasi file: app/globals.css */
+
+/* =========================================
+   1. VARIABEL WARNA & DASAR (TEMA MODERN)
+   ========================================= */
+:root {
+  --bg-color: #0b1220;
+  --card-bg: #0f1b2d;
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #263852;
+  --input-bg: #111c2e;
+  --input-border: #30445f;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+/* =========================================
+   2. HEADER TOKO
+   ========================================= */
+.customer-home-header {
+  background: #2563eb;
+  color: #fff;
+  padding: 14px 14px 16px;
+  margin: -8px -8px 10px;
+  border-radius: 0 0 26px 26px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+
+.customer-home-logo-wrap {
+  width: 86px;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.customer-home-logo {
+  width: 100%;
+  height: 100%;
+}
+
+.customer-home-title {
+  font-size: 1.18rem;
+  margin: 0;
+  letter-spacing: -0.25px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+
+.customer-home-greeting {
+  font-size: 0.78rem;
+  margin: 5px 0 0;
+  color: rgba(255,255,255,.88);
+}
+
+.customer-home-info-line {
+  margin-top: 12px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px;
+  padding: 9px 11px;
+  font-size: 0.78rem;
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+}
+
+/* =========================================
+   3. KATEGORI (CHIPS)
+   ========================================= */
+.category-chips {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 8px 10px 10px;
+  margin: 0;
+  scrollbar-width: none;
+}
+
+.category-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-btn {
+  background: transparent;
+  color: #fff;
+  border: none;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.58;
+  cursor: pointer;
+  transition: transform 0.2s;
+  white-space: nowrap;
+}
+
+.chip-btn.active {
+  opacity: 1;
+  transform: scale(1.1);
+  color: #60a5fa;
+  font-weight: bold;
+}
+
+/* =========================================
+   4. GRID & CARD PRODUK MODERN
+   ========================================= */
+.product-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, min(190px, 1fr)));
+  gap: 10px;
+  justify-content: center;
+  padding-top: 10px;
+}
+
+.modern-product-card {
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 42%, #102d58 0%, #081a36 48%, #050b18 100%);
+  border: 1px solid rgba(70,145,255,.48);
+  box-shadow: 0 0 12px rgba(0,105,255,.18);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modern-product-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.modern-product {
+  position: absolute;
+  top: 17%;
+  left: 50%;
+  width: 56%;
+  height: 54%;
+  transform: translateX(-50%);
+  object-fit: contain;
+  z-index: 3;
+}
+
+.modern-platform {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  width: 94%;
+  height: 35%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.modern-base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 32%, #dff7ff 0 9%, #1260df 53%, #071536 100%);
+}
+
+.modern-product-info {
+  position: absolute;
+  top: 68%;
+  left: 5%;
+  right: 5%;
+  z-index: 12;
+  text-align: left;
+  text-shadow: 0 1px 2px rgba(0,0,0,.95);
+}
+
+.modern-product-name {
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modern-product-price {
+  color: #ffe100;
+  font-size: 0.85rem;
+  font-weight: 900;
+  margin-top: 2px;
+}
+
+.modern-product-stock {
+  color: #8fc9ff;
+  font-size: 0.6rem;
+}
+
+.modern-cart-btn {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: white;
+  border: 1px solid rgba(255,255,255,.55);
+  z-index: 20;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =========================================
+   5. MODAL KERANJANG & FAB
+   ========================================= */
+.modal-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(2, 7, 18, 0.78);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #0b1629;
+  border: 1px solid rgba(70,145,255,.48);
+  box-shadow: 0 0 24px rgba(37,99,235,.24);
+  color: #f8fafc;
+}
+
+.fab-main {
+  transition: transform 0.2s;
+}
+.fab-main:active {
+  transform: scale(0.9);
+}
