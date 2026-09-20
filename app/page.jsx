@@ -1,7 +1,8 @@
-// Lokasi file: app/page.jsx
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { auth, db } from '../lib/firebase';
+import { signOut } from '../lib/services/authService';
+import { subscribeStoreHome } from '../lib/services/storeService';
+import { CustomerSessionProvider, useCustomerSession } from '../components/CustomerSessionContext';
 import Header from '../components/Header';
 import ProductCard from '../components/ProductCard';
 import CategoryList from '../components/CategoryList';
@@ -16,9 +17,8 @@ import ChatPanel from '../components/ChatPanel';
 
 const DEFAULT_CATEGORY = 'Home';
 
-export default function Home() {
-  const [authUser, setAuthUser] = useState(null);
-  const [tokoId, setTokoId] = useState(null);
+function CustomerHome() {
+  const { authUser, tokoId, loading: sessionLoading, error: sessionError } = useCustomerSession();
   const [storeIdentity, setStoreIdentity] = useState({});
   const [storeSettings, setStoreSettings] = useState({});
   const [produkList, setProdukList] = useState([]);
@@ -35,7 +35,6 @@ export default function Home() {
   const [activeNav, setActiveNav] = useState('home');
   const [theme, setTheme] = useState('light');
   const [chatPrefill, setChatPrefill] = useState('');
-  const [sessionError, setSessionError] = useState('');
 
   useEffect(() => {
     try {
@@ -57,109 +56,30 @@ export default function Home() {
     if (nav === 'home') { setSearchOpen(false); setSearchQuery(''); }
   };
 
-  // Fondasi identitas: Auth -> pengguna/{uid} -> tokoId.
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      setAuthUser(user || null);
-      setTokoId(null);
+    if (!tokoId) {
       setStoreIdentity({});
       setStoreSettings({});
-      setStoreError('');
-      setSessionError('');
+      setProdukList([]);
+      setKategoriList([]);
+      setLoadingStore(!sessionLoading && !!authUser);
+      return undefined;
+    }
 
-      if (!user) {
-        setLoadingStore(false);
-        return;
-      }
+    setLoadingStore(true);
+    setStoreError('');
 
-      setLoadingStore(true);
-      try {
-        const penggunaSnap = await db.collection('pengguna').doc(user.uid).get();
-        if (!penggunaSnap.exists) {
-          throw new Error('Data pengguna belum memiliki dokumen pengguna/{uid}.');
-        }
-
-        if (!penggunaSnap.exists) {
-          throw new Error('Profil pengguna tidak ditemukan.');
-        }
-
-        const pengguna = penggunaSnap.data() || {};
-        if (String(pengguna.role || '').toLowerCase() === 'admin') {
-          window.location.replace('/admin-dashboard');
-          return;
-        }
-        if (!pengguna.tokoId) {
-          throw new Error('Akun ini belum memiliki tokoId.');
-        }
-
-        setTokoId(pengguna.tokoId);
-      } catch (error) {
-        console.error('[QP] Gagal mengambil identitas pengguna:', error);
-        setStoreError(error.message || 'Gagal mengambil identitas toko.');
-        setSessionError(error.message || 'Sesi akun belum siap.');
-        setLoadingStore(false);
-      }
+    return subscribeStoreHome(tokoId, {
+      onIdentity: setStoreIdentity,
+      onSettings: setStoreSettings,
+      onProducts: (rows) => { setProdukList(rows); setLoadingStore(false); },
+      onCategories: (rows) => setKategoriList(rows.filter((item) => item.aktif !== false).sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0))),
+      onError: (error, source) => {
+        console.error(`[QP] Gagal membaca ${source}:`, error);
+        if (source === 'products') { setStoreError('Data produk toko tidak dapat dibaca.'); setLoadingStore(false); }
+      },
     });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Setelah tokoId tersedia, seluruh data customer mengikuti toko tersebut.
-  useEffect(() => {
-    if (!tokoId) return undefined;
-
-    const tokoRef = db.collection('toko').doc(tokoId);
-    const unsubscribers = [];
-    let active = true;
-
-    unsubscribers.push(
-      tokoRef.collection('identitas').doc('utama').onSnapshot((snap) => {
-        if (active) setStoreIdentity(snap.exists ? (snap.data() || {}) : {});
-      }, (error) => console.error('[QP] Gagal mengambil identitas toko:', error))
-    );
-
-    unsubscribers.push(
-      tokoRef.collection('pengaturan').doc('beranda').onSnapshot((snap) => {
-        if (active) setStoreSettings(snap.exists ? (snap.data() || {}) : {});
-      }, (error) => console.error('[QP] Gagal mengambil pengaturan toko:', error))
-    );
-
-    unsubscribers.push(
-      tokoRef.collection('produk').onSnapshot(
-        (snapshot) => {
-          if (!active) return;
-          setProdukList(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          setLoadingStore(false);
-        },
-        (error) => {
-          console.error('[QP] Gagal membaca produk:', error);
-          if (active) {
-            setStoreError('Data produk toko tidak dapat dibaca.');
-            setLoadingStore(false);
-          }
-        }
-      )
-    );
-
-    unsubscribers.push(
-      tokoRef.collection('kategori').onSnapshot(
-        (snapshot) => {
-          if (!active) return;
-          const categories = snapshot.docs
-            .map((doc) => ({ id: doc.id, ...doc.data() }))
-            .filter((item) => item.aktif !== false)
-            .sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0));
-          setKategoriList(categories);
-        },
-        (error) => console.error('[QP] Gagal membaca kategori:', error)
-      )
-    );
-
-    return () => {
-      active = false;
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
-    };
-  }, [tokoId]);
+  }, [tokoId, sessionLoading, authUser]);
 
   const kategoriNames = useMemo(
     () => [DEFAULT_CATEGORY, ...kategoriList.map((item) => item.nama).filter(Boolean)],
@@ -229,11 +149,11 @@ export default function Home() {
     try {
       setKeranjang([]);
       setChatPrefill('');
-      await auth.signOut();
-      window.location.replace('/auth');
+      await signOut();
+      window.location.replace('/login');
     } catch (error) {
       console.error('[QP Customer] Gagal keluar:', error);
-      setSessionError('Gagal keluar dari akun. Silakan coba lagi.');
+      setStoreError('Gagal keluar dari akun. Silakan coba lagi.');
     }
   };
 
@@ -247,6 +167,10 @@ export default function Home() {
   const namaToko = storeIdentity.namaToko || 'KasirQuh';
   const infoToko = storeSettings.infoToko || storeSettings.runningText || 'Selamat datang di toko kami 👋';
 
+  if (sessionLoading) {
+    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>Memuat sesi...</section></main>;
+  }
+
   if (!authUser) {
     return (
       <main className="main-content" style={{ padding: '32px 18px' }}>
@@ -254,146 +178,59 @@ export default function Home() {
           <h2>Silakan login terlebih dahulu</h2>
           <p>Halaman pelanggan membutuhkan akun yang memiliki <strong>tokoId</strong>.</p>
           {sessionError && <p className="auth-error" role="alert">{sessionError}</p>}
-          <a className="auth-inline-link" href="/auth">🔐 Masuk / Daftar</a>
+          <a className="auth-inline-link" href="/login">🔐 Masuk / Daftar</a>
         </section>
       </main>
     );
   }
 
   if (loadingStore) {
-    return (
-      <main className="main-content" style={{ padding: '32px 18px' }}>
-        <section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>
-          Memuat toko...
-        </section>
-      </main>
-    );
+    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>Memuat toko...</section></main>;
   }
 
   if (storeError) {
-    return (
-      <main className="main-content" style={{ padding: '32px 18px' }}>
-        <section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>
-          <h2>Toko belum siap</h2>
-          <p>{storeError}</p>
-        </section>
-      </main>
-    );
+    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}><h2>Toko belum siap</h2><p>{storeError}</p></section></main>;
   }
 
   return (
     <div className={`qp-shell theme-${theme}`} style={{ minHeight: '100vh' }}>
-    <div className="main-content" style={{ paddingBottom: '90px', paddingLeft: '8px', paddingRight: '8px' }}>
-      {activeNav === 'settings' ? (
-        <SettingsPanel theme={theme} setTheme={changeTheme} onLogout={handleLogout} />
-      ) : activeNav === 'orders' ? (
-        <OrderHistory tokoId={tokoId} uid={authUser?.uid} />
-      ) : activeNav === 'chat' ? (
-        <ChatPanel
-          tokoId={tokoId}
-          authUser={authUser}
-          storeIdentity={storeIdentity}
-          initialMessage={chatPrefill}
-          onInitialMessageUsed={() => setChatPrefill('')}
-        />
-      ) : (
-        <>
-          <Header namaToko={namaToko} infoToko={infoToko} />
-
-      <div className="catalog-toolbar">
-        <button className="search-toggle" type="button" onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setSearchQuery(''); }}>
-          {searchOpen ? '✕' : '🔎'}
-        </button>
-        {searchOpen && (
-          <input
-            className="catalog-search"
-            autoFocus
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari produk..."
-            aria-label="Cari produk"
-          />
+      <div className="main-content" style={{ paddingBottom: '90px', paddingLeft: '8px', paddingRight: '8px' }}>
+        {activeNav === 'settings' ? (
+          <SettingsPanel theme={theme} setTheme={changeTheme} onLogout={handleLogout} />
+        ) : activeNav === 'orders' ? (
+          <OrderHistory tokoId={tokoId} uid={authUser?.uid} />
+        ) : activeNav === 'chat' ? (
+          <ChatPanel tokoId={tokoId} authUser={authUser} storeIdentity={storeIdentity} initialMessage={chatPrefill} onInitialMessageUsed={() => setChatPrefill('')} />
+        ) : (
+          <>
+            <Header namaToko={namaToko} infoToko={infoToko} />
+            <div className="catalog-toolbar">
+              <button className="search-toggle" type="button" onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setSearchQuery(''); }}>{searchOpen ? '✕' : '🔎'}</button>
+              {searchOpen && <input className="catalog-search" autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari produk..." aria-label="Cari produk" />}
+            </div>
+            {!searchOpen && <div className="promo-banner"><h2 className="promo-title">Diskon Spesial!</h2><p className="promo-desc">Belanja kebutuhan harian lebih hemat dengan potongan harga eksklusif.</p><button className="promo-btn" onClick={() => alert('Promo berhasil diklaim!')}>Klaim Promo</button><div className="promo-bg-shape"></div></div>}
+            {!searchOpen && <div style={{ marginBottom: '18px' }}><h3 style={{ fontSize: '1.1rem', margin: '0 0 10px 10px', color: 'var(--text-color)' }}>Kategori Pilihan</h3><CategoryList categories={kategoriNames} activeCategory={kategoriAktif} onSelectCategory={setKategoriAktif} /></div>}
+            <div className="pos-container">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 10px 14px' }}><h3 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)' }}>{searchOpen ? `Hasil pencarian${searchQuery ? `: ${searchQuery}` : ''}` : 'Rekomendasi Produk'}</h3><span style={{ fontSize: '0.8rem', color: '#60a5fa' }}>{produkTampil.length} produk</span></div>
+              <div className="product-catalog-grid">{produkTampil.map((produk) => <ProductCard key={produk.id} produk={produk} onAddToCart={handleAddToCart} onOpenDetail={setSelectedProduct} />)}</div>
+            </div>
+          </>
         )}
+
+        {activeNav === 'home' && <FloatingActions totalItems={totalBarangDiKeranjang} onOpenCart={() => setIsCartOpen(true)} onOpenAi={() => alert('Fitur AI segera hadir')} />}
+        <ProductDetailModal product={selectedProduct} onClose={() => setSelectedProduct(null)} onAdd={handleAddToCart} onAskAdmin={handleAskAdmin} />
+        <CartModal isOpen={isCartOpen} onClose={() => { setIsCartOpen(false); setActiveNav('home'); }} cart={keranjang} updateQty={handleUpdateQty} onCheckout={handleOpenCheckout} />
+        <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} tokoId={tokoId} authUser={authUser} storeIdentity={storeIdentity} cart={keranjang} total={totalKeranjang} onOrderCreated={handleOrderCreated} />
+        <BottomNav active={activeNav} onHome={() => openNav('home')} onCart={() => openNav('cart')} onOrders={() => openNav('orders')} onChat={() => openNav('chat')} onSettings={() => openNav('settings')} totalItems={totalBarangDiKeranjang} />
       </div>
-
-      {!searchOpen && <div className="promo-banner">
-        <h2 className="promo-title">Diskon Spesial!</h2>
-        <p className="promo-desc">Belanja kebutuhan harian lebih hemat dengan potongan harga eksklusif.</p>
-        <button className="promo-btn" onClick={() => alert('Promo berhasil diklaim!')}>Klaim Promo</button>
-        <div className="promo-bg-shape"></div>
-      </div>}
-
-      {!searchOpen && <div style={{ marginBottom: '18px' }}>
-        <h3 style={{ fontSize: '1.1rem', margin: '0 0 10px 10px', color: 'var(--text-color)' }}>
-          Kategori Pilihan
-        </h3>
-        <CategoryList
-          categories={kategoriNames}
-          activeCategory={kategoriAktif}
-          onSelectCategory={setKategoriAktif}
-        />
-      </div>}
-
-      <div className="pos-container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 10px 14px' }}>
-          <h3 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)' }}>
-            {searchOpen ? `Hasil pencarian${searchQuery ? `: ${searchQuery}` : ''}` : 'Rekomendasi Produk'}
-          </h3>
-          <span style={{ fontSize: '0.8rem', color: '#60a5fa' }}>{produkTampil.length} produk</span>
-        </div>
-
-        <div className="product-catalog-grid">
-          {produkTampil.map((produk) => (
-            <ProductCard key={produk.id} produk={produk} onAddToCart={handleAddToCart} onOpenDetail={setSelectedProduct} />
-          ))}
-        </div>
-      </div>
-
-        </>
-      )}
-
-      {activeNav === 'home' && <FloatingActions
-        totalItems={totalBarangDiKeranjang}
-        onOpenCart={() => setIsCartOpen(true)}
-        onOpenAi={() => alert('Fitur AI segera hadir')}
-      />}
-
-      <ProductDetailModal
-        product={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-        onAdd={handleAddToCart}
-        onAskAdmin={handleAskAdmin}
-      />
-
-      <CartModal
-        isOpen={isCartOpen}
-        onClose={() => { setIsCartOpen(false); setActiveNav('home'); }}
-        cart={keranjang}
-        updateQty={handleUpdateQty}
-        onCheckout={handleOpenCheckout}
-      />
-
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        tokoId={tokoId}
-        authUser={authUser}
-        storeIdentity={storeIdentity}
-        cart={keranjang}
-        total={totalKeranjang}
-        onOrderCreated={handleOrderCreated}
-      />
-
-      <BottomNav
-        active={activeNav}
-        onHome={() => openNav('home')}
-        onCart={() => openNav('cart')}
-        onOrders={() => openNav('orders')}
-        onChat={() => openNav('chat')}
-        onSettings={() => openNav('settings')}
-        totalItems={totalBarangDiKeranjang}
-      />
     </div>
-    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <CustomerSessionProvider>
+      <CustomerHome />
+    </CustomerSessionProvider>
   );
 }
