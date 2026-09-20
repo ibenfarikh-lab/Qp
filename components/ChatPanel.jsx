@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeChatMessages, sendCustomerMessage } from '../lib/services/chatService';
 
 function formatChatTime(value) {
   if (!value) return '';
@@ -19,10 +19,7 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
   const bottomRef = useRef(null);
 
   const chatId = authUser?.uid || null;
-  const chatRef = useMemo(() => {
-    if (!tokoId || !chatId) return null;
-    return db.collection('toko').doc(tokoId).collection('chatPelanggan').doc(chatId);
-  }, [tokoId, chatId]);
+  const chatRef = useMemo(() => (tokoId && chatId ? { tokoId, chatId } : null), [tokoId, chatId]);
 
   useEffect(() => {
     if (!initialMessage) return;
@@ -39,26 +36,19 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
 
     setLoading(true);
     setError('');
-    const unsubscribe = chatRef.collection('messages').onSnapshot(
-      (snapshot) => {
-        const data = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => {
-            const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-            const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
-            return aTime - bTime;
-          });
-        setMessages(data);
-        setLoading(false);
-      },
-      (snapshotError) => {
-        console.error('[QP] Gagal membaca chat pelanggan:', snapshotError);
-        setError('Chat belum dapat dibuka. Periksa izin Firestore untuk chatPelanggan.');
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
+    return subscribeChatMessages(tokoId, chatId, (data) => {
+      data.sort((a, b) => {
+        const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+        const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return aTime - bTime;
+      });
+      setMessages(data);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('[QP] Gagal membaca chat pelanggan:', snapshotError);
+      setError('Chat belum dapat dibuka. Periksa izin Firestore untuk chatPelanggan.');
+      setLoading(false);
+    });
   }, [chatRef]);
 
   useEffect(() => {
@@ -73,31 +63,7 @@ export default function ChatPanel({ tokoId, authUser, storeIdentity, initialMess
     setSending(true);
     setError('');
     try {
-      const now = firebase.firestore.FieldValue.serverTimestamp();
-      const customerName = authUser?.displayName || authUser?.email || 'Pelanggan';
-      const messageRef = chatRef.collection('messages').doc();
-
-      await messageRef.set({
-        text,
-        senderId: authUser.uid,
-        senderRole: 'pelanggan',
-        senderName: customerName,
-        createdAt: now,
-        tokoId,
-      });
-
-      await chatRef.set({
-        uidPelanggan: authUser.uid,
-        namaPelanggan: customerName,
-        emailPelanggan: authUser?.email || '',
-        tokoId,
-        status: 'aktif',
-        lastMessage: text,
-        lastSender: 'pelanggan',
-        unreadByAdmin: firebase.firestore.FieldValue.increment(1),
-        updatedAt: now,
-      }, { merge: true });
-
+      await sendCustomerMessage(tokoId, authUser, text);
       setDraft('');
     } catch (sendError) {
       console.error('[QP] Gagal mengirim chat:', sendError);

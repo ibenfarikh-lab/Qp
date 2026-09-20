@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeChats, subscribeChatMessages, markChatRead, sendAdminMessage } from '../lib/services/chatService';
 
 function formatTime(value) {
   if (!value) return '';
@@ -27,26 +27,20 @@ export default function AdminChatPanel({ tokoId, authUser }) {
   useEffect(() => {
     if (!tokoId) return undefined;
     setLoading(true);
-    const ref = db.collection('toko').doc(tokoId).collection('chatPelanggan');
-    const unsubscribe = ref.onSnapshot(
-      (snapshot) => {
-        const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        rows.sort((a, b) => {
-          const at = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : new Date(a.updatedAt || 0).getTime();
-          const bt = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : new Date(b.updatedAt || 0).getTime();
-          return bt - at;
-        });
-        setConversations(rows);
-        setSelectedId((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id || null);
-        setLoading(false);
-      },
-      (snapshotError) => {
-        console.error('[QP Admin Chat] Gagal membaca inbox:', snapshotError);
-        setError('Inbox chat belum dapat dibuka. Periksa izin Firestore.');
-        setLoading(false);
-      }
-    );
-    return () => unsubscribe();
+    return subscribeChats(tokoId, (rows) => {
+      rows.sort((a, b) => {
+        const at = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : new Date(a.updatedAt || 0).getTime();
+        const bt = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : new Date(b.updatedAt || 0).getTime();
+        return bt - at;
+      });
+      setConversations(rows);
+      setSelectedId((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id || null);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('[QP Admin Chat] Gagal membaca inbox:', snapshotError);
+      setError('Inbox chat belum dapat dibuka. Periksa izin Firestore.');
+      setLoading(false);
+    });
   }, [tokoId]);
 
   useEffect(() => {
@@ -54,9 +48,7 @@ export default function AdminChatPanel({ tokoId, authUser }) {
       setMessages([]);
       return undefined;
     }
-    const chatRef = db.collection('toko').doc(tokoId).collection('chatPelanggan').doc(selectedId);
-    const unsubscribe = chatRef.collection('messages').onSnapshot((snapshot) => {
-      const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const unsubscribe = subscribeChatMessages(tokoId, selectedId, (rows) => {
       rows.sort((a, b) => {
         const at = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
         const bt = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
@@ -65,7 +57,7 @@ export default function AdminChatPanel({ tokoId, authUser }) {
       setMessages(rows);
     });
 
-    chatRef.set({ unreadByAdmin: 0 }, { merge: true }).catch(() => {});
+    markChatRead(tokoId, selectedId).catch(() => {});
     return () => unsubscribe();
   }, [tokoId, selectedId]);
 
@@ -76,25 +68,8 @@ export default function AdminChatPanel({ tokoId, authUser }) {
 
     setSending(true);
     setError('');
-    const chatRef = db.collection('toko').doc(tokoId).collection('chatPelanggan').doc(selectedChat.id);
     try {
-      const now = firebase.firestore.FieldValue.serverTimestamp();
-      await chatRef.collection('messages').add({
-        text,
-        senderId: authUser.uid,
-        senderRole: 'admin',
-        senderName: authUser.displayName || authUser.email || 'Admin Toko',
-        tokoId,
-        createdAt: now,
-      });
-      await chatRef.set({
-        status: 'aktif',
-        lastMessage: text,
-        lastSender: 'admin',
-        updatedAt: now,
-        unreadByAdmin: 0,
-        unreadByCustomer: firebase.firestore.FieldValue.increment(1),
-      }, { merge: true });
+      await sendAdminMessage(tokoId, selectedChat.id, authUser, text);
       setDraft('');
     } catch (sendError) {
       console.error('[QP Admin Chat] Gagal mengirim:', sendError);

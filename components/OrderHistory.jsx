@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeCustomerOrders, confirmCustomerTransfer } from '../lib/services/orderService';
 
 const STATUS = {
   menunggu: { label: 'Menunggu', icon: '⏳' },
@@ -31,16 +31,7 @@ export default function OrderHistory({ tokoId, uid }) {
     setConfirmingId(order.id);
     setError('');
     try {
-      await db.collection('toko').doc(tokoId).collection('pesanan').doc(order.id).set({
-        statusPembayaran: 'menunggu_verifikasi',
-        pembayaran: {
-          ...(order.pembayaran || {}),
-          status: 'menunggu_verifikasi',
-          dikonfirmasiPelanggan: true,
-          dikonfirmasiPelangganAt: firebase.firestore.FieldValue.serverTimestamp(),
-        },
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      await confirmCustomerTransfer(tokoId, order, uid);
     } catch (err) {
       console.error('[QP] Konfirmasi transfer gagal:', err);
       setError('Konfirmasi transfer belum terkirim. Coba lagi.');
@@ -58,28 +49,19 @@ export default function OrderHistory({ tokoId, uid }) {
 
     setLoading(true);
     setError('');
-    const ref = db.collection('toko').doc(tokoId).collection('pesanan').where('uidPelanggan', '==', uid);
-
-    const unsubscribe = ref.onSnapshot(
-      (snapshot) => {
-        const data = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => {
-            const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-            const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
-            return bTime - aTime;
-          });
-        setOrders(data);
-        setLoading(false);
-      },
-      (snapshotError) => {
-        console.error('[QP] Gagal membaca riwayat pesanan:', snapshotError);
-        setError('Riwayat pesanan belum dapat dibaca.');
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
+    return subscribeCustomerOrders(tokoId, uid, (data) => {
+      data.sort((a, b) => {
+        const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+        const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      setOrders(data);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('[QP] Gagal membaca riwayat pesanan:', snapshotError);
+      setError('Riwayat pesanan belum dapat dibaca.');
+      setLoading(false);
+    });
   }, [tokoId, uid]);
 
   return (

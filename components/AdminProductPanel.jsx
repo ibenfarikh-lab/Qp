@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeProducts, subscribeCategories, saveProduct, setProductActive, deleteProduct } from '../lib/services/productService';
 
 const EMPTY_FORM = {
   nama: '', harga: '', stok: '', satuan: 'pcs', kategoriId: '', foto: '', deskripsi: '', aktif: true,
@@ -25,15 +25,13 @@ export default function AdminProductPanel({ tokoId, authUser }) {
 
   useEffect(() => {
     if (!tokoId) return undefined;
-    const base = db.collection('toko').doc(tokoId);
     const unsubs = [
-      base.collection('produk').onSnapshot((snap) => {
-        const rows = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      subscribeProducts(tokoId, (rows) => {
         rows.sort((a, b) => String(a.nama || '').localeCompare(String(b.nama || ''), 'id'));
         setProducts(rows);
       }, (err) => { console.error('[QP Admin Products] Produk:', err); setError('Produk belum dapat dibaca. Periksa izin Firestore.'); }),
-      base.collection('kategori').onSnapshot((snap) => {
-        const rows = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((x) => x.aktif !== false);
+      subscribeCategories(tokoId, (rows) => {
+        rows = rows.filter((x) => x.aktif !== false);
         rows.sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0));
         setCategories(rows);
       }, (err) => { console.error('[QP Admin Products] Kategori:', err); }),
@@ -76,14 +74,11 @@ export default function AdminProductPanel({ tokoId, authUser }) {
 
     setSaving(true); setError('');
     try {
-      const ref = db.collection('toko').doc(tokoId).collection('produk');
       const payload = {
         nama, harga, hargaJual: harga, stok, satuan: form.satuan.trim() || 'pcs', kategoriId: form.kategoriId || null,
         foto: form.foto.trim() || '', deskripsi: form.deskripsi.trim() || '', aktif: Boolean(form.aktif),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
       };
-      if (selectedId) await ref.doc(selectedId).set(payload, { merge: true });
-      else await ref.add({ ...payload, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: authUser.uid });
+      await saveProduct(tokoId, selectedId, payload, authUser.uid);
       setEditing(false); setSelectedId(null); setForm(EMPTY_FORM);
     } catch (err) {
       console.error('[QP Admin Products] Simpan:', err); setError('Produk belum tersimpan. Periksa izin Firestore.');
@@ -92,7 +87,7 @@ export default function AdminProductPanel({ tokoId, authUser }) {
 
   const toggleActive = async (product) => {
     try {
-      await db.collection('toko').doc(tokoId).collection('produk').doc(product.id).set({ aktif: product.aktif === false, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid }, { merge: true });
+      await setProductActive(tokoId, product.id, product.aktif === false, authUser.uid);
     } catch (err) { console.error('[QP Admin Products] Aktif:', err); setError('Status produk belum berubah.'); }
   };
 
@@ -101,7 +96,7 @@ export default function AdminProductPanel({ tokoId, authUser }) {
     if (!window.confirm('Hapus produk ini? Data pesanan lama tetap menyimpan nama produk yang sudah dipesan.')) return;
     setDeleting(true); setError('');
     try {
-      await db.collection('toko').doc(tokoId).collection('produk').doc(selectedId).delete();
+      await deleteProduct(tokoId, selectedId);
       setEditing(false); setSelectedId(null); setForm(EMPTY_FORM);
     } catch (err) { console.error('[QP Admin Products] Hapus:', err); setError('Produk belum dapat dihapus.'); }
     finally { setDeleting(false); }

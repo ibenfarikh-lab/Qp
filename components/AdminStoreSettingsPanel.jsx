@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeStoreSettings } from '../lib/services/storeService';
+import { saveStoreSettings } from '../lib/services/settingsService';
+import { addCategory, updateCategory, deleteCategory } from '../lib/services/productService';
 
 const DEFAULT_SETTINGS = {
   tampilkanStok: true,
@@ -30,24 +32,16 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
 
   useEffect(() => {
     if (!tokoId) return undefined;
-    const base = db.collection('toko').doc(tokoId);
-    const unsubs = [
-      base.collection('identitas').doc('utama').onSnapshot((snap) => {
-        if (snap.exists) setIdentity({ ...EMPTY_IDENTITY, ...snap.data() });
-      }, (err) => { console.error('[QP Settings] Identitas:', err); setError('Identitas toko belum dapat dibaca.'); }),
-      base.collection('pengaturan').doc('beranda').onSnapshot((snap) => {
-        if (snap.exists) setSettings({ ...DEFAULT_SETTINGS, ...snap.data() });
-      }, (err) => { console.error('[QP Settings] Pengaturan:', err); setError('Pengaturan beranda belum dapat dibaca.'); }),
-      base.collection('pengaturan').doc('pembayaran').onSnapshot((snap) => {
-        if (snap.exists) setPayment({ ...DEFAULT_PAYMENT, ...snap.data() });
-      }, (err) => { console.error('[QP Settings] Pembayaran:', err); setError('Pengaturan pembayaran belum dapat dibaca.'); }),
-      base.collection('kategori').onSnapshot((snap) => {
-        const rows = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        rows.sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0));
-        setCategories(rows);
-      }, (err) => { console.error('[QP Settings] Kategori:', err); setError('Kategori belum dapat dibaca.'); }),
-    ];
-    return () => unsubs.forEach((unsub) => unsub());
+    return subscribeStoreSettings(tokoId, {
+      onIdentity: (data) => setIdentity({ ...EMPTY_IDENTITY, ...data }),
+      onHomeSettings: (data) => setSettings({ ...DEFAULT_SETTINGS, ...data }),
+      onPayment: (data) => setPayment({ ...DEFAULT_PAYMENT, ...data }),
+      onCategories: (rows) => { rows.sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0)); setCategories(rows); },
+      onError: (err, source) => {
+        console.error(`[QP Settings] ${source}:`, err);
+        setError(`${source === 'identity' ? 'Identitas toko' : source === 'payment' ? 'Pengaturan pembayaran' : source === 'categories' ? 'Kategori' : 'Pengaturan beranda'} belum dapat dibaca.`);
+      },
+    });
   }, [tokoId]);
 
   const saveStore = async (event) => {
@@ -56,20 +50,11 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
     if (!identity.namaToko.trim()) return setError('Nama toko wajib diisi.');
     setSaving(true); setError(''); setMessage('');
     try {
-      const base = db.collection('toko').doc(tokoId);
-      await base.collection('identitas').doc('utama').set({
-        namaToko: identity.namaToko.trim(), logo: identity.logo.trim(), alamat: identity.alamat.trim(), telepon: identity.telepon.trim(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
-      }, { merge: true });
-      await base.collection('pengaturan').doc('pembayaran').set({
-        bank: payment.bank.trim(), nomor: payment.nomor.trim(), atasNama: payment.atasNama.trim(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
-      }, { merge: true });
-      await base.collection('pengaturan').doc('beranda').set({
-        tampilkanStok: Boolean(settings.tampilkanStok), tampilkanIdeMasak: Boolean(settings.tampilkanIdeMasak),
-        tampilkanProdukTerlaris: Boolean(settings.tampilkanProdukTerlaris), jumlahProduk: Math.max(0, Number(settings.jumlahProduk || 0)),
-        tema: settings.tema || 'light', updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
-      }, { merge: true });
+      await saveStoreSettings(tokoId, authUser, {
+        identity: { namaToko: identity.namaToko.trim(), logo: identity.logo.trim(), alamat: identity.alamat.trim(), telepon: identity.telepon.trim() },
+        payment: { bank: payment.bank.trim(), nomor: payment.nomor.trim(), atasNama: payment.atasNama.trim() },
+        settings: { tampilkanStok: Boolean(settings.tampilkanStok), tampilkanIdeMasak: Boolean(settings.tampilkanIdeMasak), tampilkanProdukTerlaris: Boolean(settings.tampilkanProdukTerlaris), jumlahProduk: Math.max(0, Number(settings.jumlahProduk || 0)), tema: settings.tema || 'light' },
+      });
       setMessage('Pengaturan toko berhasil disimpan.');
     } catch (err) {
       console.error('[QP Settings] Simpan:', err); setError('Pengaturan belum tersimpan. Periksa izin Firestore.');
@@ -83,10 +68,7 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
     setCategorySaving(true); setError(''); setMessage('');
     try {
       const maxOrder = categories.reduce((max, item) => Math.max(max, Number(item.urutan || 0)), 0);
-      await db.collection('toko').doc(tokoId).collection('kategori').add({
-        nama, ikon: newCategory.ikon.trim() || '🏷️', urutan: maxOrder + 1, aktif: true,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
-      });
+      await addCategory(tokoId, { nama, ikon: newCategory.ikon.trim() || '🏷️', urutan: maxOrder + 1, aktif: true }, authUser.uid);
       setNewCategory({ nama: '', ikon: '🏷️' }); setMessage('Kategori ditambahkan.');
     } catch (err) { console.error('[QP Settings] Tambah kategori:', err); setError('Kategori belum dapat ditambahkan.'); }
     finally { setCategorySaving(false); }
@@ -101,10 +83,7 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
     if (!editingCategory || !categoryForm.nama.trim() || categorySaving) return;
     setCategorySaving(true); setError('');
     try {
-      await db.collection('toko').doc(tokoId).collection('kategori').doc(editingCategory).set({
-        nama: categoryForm.nama.trim(), ikon: categoryForm.ikon.trim() || '🏷️', urutan: Number(categoryForm.urutan || 0), aktif: Boolean(categoryForm.aktif),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: authUser.uid,
-      }, { merge: true });
+      await updateCategory(tokoId, editingCategory, { nama: categoryForm.nama.trim(), ikon: categoryForm.ikon.trim() || '🏷️', urutan: Number(categoryForm.urutan || 0), aktif: Boolean(categoryForm.aktif) }, authUser.uid);
       setEditingCategory(null); setMessage('Kategori diperbarui.');
     } catch (err) { console.error('[QP Settings] Edit kategori:', err); setError('Kategori belum dapat diperbarui.'); }
     finally { setCategorySaving(false); }
@@ -113,14 +92,14 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
   const deleteCategory = async (id) => {
     if (!window.confirm('Hapus kategori ini? Produk yang memakai kategori ini tidak ikut terhapus.')) return;
     try {
-      await db.collection('toko').doc(tokoId).collection('kategori').doc(id).delete();
+      await deleteCategory(tokoId, id);
       setMessage('Kategori dihapus.');
     } catch (err) { console.error('[QP Settings] Hapus kategori:', err); setError('Kategori belum dapat dihapus.'); }
   };
 
   return (
     <section className="admin-settings-panel">
-      <header className="admin-settings-heading"><div><span>ADMIN • TOKO</span><h1>Pengaturan Toko</h1><p>Atur identitas, tampilan beranda pelanggan, dan kategori dari toko ini.</p></div><a href="/admin-dashboard" className="admin-settings-link">← Dashboard</a></header>
+      <header className="admin-settings-heading"><div><span>ADMIN • TOKO</span><h1>Pengaturan Toko</h1><p>Atur identitas, tampilan beranda pelanggan, dan kategori dari toko ini.</p></div><a href="/admin" className="admin-settings-link">← Dashboard</a></header>
       {message && <div className="admin-settings-message">✓ {message}</div>}
       {error && <div className="admin-settings-error">{error}</div>}
 

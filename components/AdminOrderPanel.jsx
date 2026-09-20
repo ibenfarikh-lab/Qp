@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { db, firebase } from '../lib/firebase';
+import { subscribeOrders, updateOrderStatus, updatePaymentStatus } from '../lib/services/orderService';
 
 const STATUS = [
   { key: 'menunggu', label: 'Menunggu', icon: '⏳' },
@@ -35,9 +35,7 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
   useEffect(() => {
     if (!tokoId) return undefined;
     setLoading(true);
-    const ref = db.collection('toko').doc(tokoId).collection('pesanan');
-    const unsubscribe = ref.onSnapshot((snapshot) => {
-      const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return subscribeOrders(tokoId, (rows) => {
       rows.sort((a, b) => {
         const at = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
         const bt = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
@@ -51,7 +49,6 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
       setError('Daftar pesanan belum dapat dibuka. Periksa izin Firestore.');
       setLoading(false);
     });
-    return () => unsubscribe();
   }, [tokoId]);
 
   const filteredOrders = useMemo(() => {
@@ -69,101 +66,7 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
     setSaving(true);
     setError('');
     try {
-      const tokoRef = db.collection('toko').doc(tokoId);
-      const orderRef = tokoRef.collection('pesanan').doc(selectedOrder.id);
-      const now = firebase.firestore.FieldValue.serverTimestamp();
-
-      await db.runTransaction(async (transaction) => {
-        const freshOrderSnap = await transaction.get(orderRef);
-        if (!freshOrderSnap.exists) throw new Error('ORDER_NOT_FOUND');
-        const order = freshOrderSnap.data() || {};
-        const status = String(order.status || 'menunggu').toLowerCase();
-        const items = Array.isArray(order.items) ? order.items : [];
-
-        // Stok dikurangi tepat satu kali ketika pesanan mulai diproses.
-        // Menunggu tidak mengunci/mengurangi stok agar pesanan yang belum
-        // dikonfirmasi tidak menghabiskan stok toko.
-        if (nextStatus === 'diproses' && !order.stokDikurangi) {
-          const productRefs = items.map((item) => ({
-            item,
-            ref: tokoRef.collection('produk').doc(String(item.produkId || '')),
-          })).filter(({ item }) => item.produkId);
-
-          const productSnaps = [];
-          for (const entry of productRefs) productSnaps.push({ ...entry, snap: await transaction.get(entry.ref) });
-
-          const shortages = [];
-          for (const entry of productSnaps) {
-            if (!entry.snap.exists) {
-              shortages.push(`${entry.item.nama || entry.item.produkId}: produk tidak ditemukan`);
-              continue;
-            }
-            const data = entry.snap.data() || {};
-            const stock = Number(data.stok || 0);
-            const qty = Number(entry.item.qty || 0);
-            if (!Number.isFinite(qty) || qty <= 0 || stock < qty) {
-              shortages.push(`${entry.item.nama || entry.item.produkId}: stok ${stock}, butuh ${qty}`);
-            }
-          }
-          if (shortages.length) throw new Error(`STOCK_SHORTAGE:${shortages.join(' | ')}`);
-
-          for (const entry of productSnaps) {
-            const data = entry.snap.data() || {};
-            const stock = Number(data.stok || 0);
-            const qty = Number(entry.item.qty || 0);
-            transaction.update(entry.ref, {
-              stok: stock - qty,
-              updatedAt: now,
-              updatedBy: authUser.uid,
-              stokTerakhirBerubah: now,
-              stokSumber: 'pesanan',
-            });
-          }
-        }
-
-        // Jika pesanan yang stoknya sudah dipotong dibatalkan, kembalikan stok
-        // satu kali. Pesanan yang belum diproses tidak melakukan pengembalian.
-        if (nextStatus === 'dibatalkan' && order.stokDikurangi && !order.stokDikembalikan) {
-          const productRefs = items.map((item) => ({
-            item,
-            ref: tokoRef.collection('produk').doc(String(item.produkId || '')),
-          })).filter(({ item }) => item.produkId);
-          const productSnaps = [];
-          for (const entry of productRefs) productSnaps.push({ ...entry, snap: await transaction.get(entry.ref) });
-
-          for (const entry of productSnaps) {
-            if (!entry.snap.exists) continue;
-            const data = entry.snap.data() || {};
-            const stock = Number(data.stok || 0);
-            const qty = Number(entry.item.qty || 0);
-            transaction.update(entry.ref, {
-              stok: stock + qty,
-              updatedAt: now,
-              updatedBy: authUser.uid,
-              stokTerakhirBerubah: now,
-              stokSumber: 'pembatalan-pesanan',
-            });
-          }
-        }
-
-        const orderUpdate = {
-          status: nextStatus,
-          updatedAt: now,
-          statusUpdatedAt: now,
-          statusUpdatedBy: authUser.uid,
-        };
-        if (nextStatus === 'diproses' && !order.stokDikurangi) {
-          orderUpdate.stokDikurangi = true;
-          orderUpdate.stokDikurangiAt = now;
-          orderUpdate.stokDikurangiBy = authUser.uid;
-        }
-        if (nextStatus === 'dibatalkan' && order.stokDikurangi && !order.stokDikembalikan) {
-          orderUpdate.stokDikembalikan = true;
-          orderUpdate.stokDikembalikanAt = now;
-          orderUpdate.stokDikembalikanBy = authUser.uid;
-        }
-        transaction.set(orderRef, orderUpdate, { merge: true });
-      });
+      await updateOrderStatus(tokoId, selectedOrder.id, nextStatus, authUser.uid);
     } catch (updateError) {
       console.error('[QP Admin Orders] Gagal mengubah status/stok:', updateError);
       if (String(updateError?.message || '').startsWith('STOCK_SHORTAGE:')) {
@@ -189,17 +92,7 @@ export default function AdminOrderPanel({ tokoId, authUser }) {
     setPaymentSaving(true);
     setError('');
     try {
-      const now = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('toko').doc(tokoId).collection('pesanan').doc(selectedOrder.id).set({
-        statusPembayaran: nextStatus,
-        pembayaran: {
-          ...(selectedOrder.pembayaran || {}),
-          status: nextStatus,
-          diverifikasiOleh: authUser.uid,
-          diverifikasiAt: now,
-        },
-        updatedAt: now,
-      }, { merge: true });
+      await updatePaymentStatus(tokoId, selectedOrder, nextStatus, authUser.uid);
     } catch (err) {
       console.error('[QP Admin Orders] Gagal mengubah pembayaran:', err);
       setError('Status pembayaran belum berubah. Periksa izin Firestore.');

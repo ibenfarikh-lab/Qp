@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import firebase, { db, functions } from '../lib/firebase';
+import { createCustomerOrder } from '../lib/services/orderService';
+import { subscribePaymentSettings } from '../lib/services/storeService';
 
 function makeOrderCode() {
   const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
@@ -30,8 +31,8 @@ export default function CheckoutModal({
 
   useEffect(() => {
     if (!isOpen || !tokoId) return undefined;
-    return db.collection('toko').doc(tokoId).collection('pengaturan').doc('pembayaran').onSnapshot((snap) => {
-      if (snap.exists) setTransferConfig({ bank: '', nomor: '', atasNama: '', ...snap.data() });
+    return subscribePaymentSettings(tokoId, (data) => {
+      setTransferConfig({ bank: '', nomor: '', atasNama: '', ...data });
     }, (err) => console.error('[QP Checkout] Gagal membaca pengaturan pembayaran:', err));
   }, [isOpen, tokoId]);
 
@@ -60,7 +61,6 @@ export default function CheckoutModal({
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      const createCustomerOrder = functions.httpsCallable('createCustomerOrder');
       const result = await createCustomerOrder({
         tokoId,
         requestId,
