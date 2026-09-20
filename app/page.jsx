@@ -62,7 +62,8 @@ function CustomerHome() {
       setStoreSettings({});
       setProdukList([]);
       setKategoriList([]);
-      setLoadingStore(!sessionLoading && !!authUser);
+      setLoadingStore(false);
+      if (sessionError) setStoreError(sessionError);
       return undefined;
     }
 
@@ -72,14 +73,32 @@ function CustomerHome() {
     return subscribeStoreHome(tokoId, {
       onIdentity: setStoreIdentity,
       onSettings: setStoreSettings,
-      onProducts: (rows) => { setProdukList(rows); setLoadingStore(false); },
+      onProducts: (rows) => {
+        setProdukList(rows);
+        setKeranjang((prev) => prev
+          .map((item) => {
+            const latest = rows.find((produk) => produk.id === item.id);
+            if (!latest || latest.aktif === false || Number(latest.stok || 0) <= 0) return null;
+            const latestStock = Number(latest.stok || 0);
+            return { ...item, ...latest, harga: latest.hargaJual || latest.harga || item.harga || 0, qty: Math.min(item.qty, latestStock) };
+          })
+          .filter(Boolean)
+        );
+        setLoadingStore(false);
+      },
       onCategories: (rows) => setKategoriList(rows.filter((item) => item.aktif !== false).sort((a, b) => Number(a.urutan || 0) - Number(b.urutan || 0))),
       onError: (error, source) => {
         console.error(`[QP] Gagal membaca ${source}:`, error);
-        if (source === 'products') { setStoreError('Data produk toko tidak dapat dibaca.'); setLoadingStore(false); }
+        if (source === 'identity') {
+          setStoreError('Identitas toko tidak dapat dibaca.');
+          setLoadingStore(false);
+        } else if (source === 'products') {
+          setStoreError('Data produk toko tidak dapat dibaca.');
+          setLoadingStore(false);
+        }
       },
     });
-  }, [tokoId, sessionLoading, authUser]);
+  }, [tokoId, sessionError]);
 
   const kategoriNames = useMemo(
     () => [DEFAULT_CATEGORY, ...kategoriList.map((item) => item.nama).filter(Boolean)],
@@ -184,6 +203,10 @@ function CustomerHome() {
     );
   }
 
+  if (sessionError) {
+    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}><h2>Sesi toko belum siap</h2><p>{sessionError}</p><a className="auth-inline-link" href="/login">🔐 Kembali ke Login</a></section></main>;
+  }
+
   if (loadingStore) {
     return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>Memuat toko...</section></main>;
   }
@@ -227,10 +250,43 @@ function CustomerHome() {
   );
 }
 
-export default function Home() {
+function Gateway() {
+  const [entry, setEntry] = useState(null);
+
+  if (entry === 'customer') {
+    return (
+      <CustomerSessionProvider>
+        <CustomerHome />
+      </CustomerSessionProvider>
+    );
+  }
+
   return (
-    <CustomerSessionProvider>
-      <CustomerHome />
-    </CustomerSessionProvider>
+    <main className="qp-gateway">
+      <section className="qp-gateway-card" aria-labelledby="gateway-title">
+        <div className="qp-gateway-brand" aria-hidden="true">🛒</div>
+        <p className="qp-gateway-eyebrow">KASIRQUH V4</p>
+        <h1 id="gateway-title">Selamat datang</h1>
+        <p className="qp-gateway-subtitle">Pilih jalur untuk melanjutkan.</p>
+
+        <div className="qp-gateway-actions">
+          <button type="button" className="qp-gateway-primary" onClick={() => setEntry('customer')}>
+            <span className="qp-gateway-icon" aria-hidden="true">🛒</span>
+            <span><strong>Mulai Belanja</strong><small>Masuk sebagai pelanggan</small></span>
+          </button>
+
+          <a className="qp-gateway-admin" href="/login">
+            <span className="qp-gateway-lock" aria-hidden="true">🔒</span>
+            <span><strong>Panel Admin</strong><small>Masuk atau daftar toko</small></span>
+          </a>
+        </div>
+
+        <p className="qp-gateway-note">Akses admin dan pelanggan tetap memakai akun serta tokoId masing-masing.</p>
+      </section>
+    </main>
   );
+}
+
+export default function Home() {
+  return <Gateway />;
 }
