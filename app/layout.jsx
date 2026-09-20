@@ -13,27 +13,22 @@ export default function RootLayout({ children }) {
     <html lang="id">
       <body className="bg-gray-50 text-gray-900 antialiased min-h-screen flex flex-col relative">
         
-        {/* Header akan selalu muncul di paling atas pada semua halaman */}
+        {/* Memanggil komponen Header global */}
         <Header />
         
-        {/* Konten utama dari page.jsx akan masuk ke sini */}
-        <main className="flex-grow pt-16"> 
-          {/* Catatan: pt-16 (padding-top) berguna agar konten tidak tertutup Header jika Header Anda modelnya fixed/sticky */}
+        {/* Konten utama halaman */}
+        <main className="flex-grow pt-16">
           {children}
         </main>
 
-        {/* Elemen melayang (seperti tombol chat/scroll) diletakkan di sini */}
+        {/* Memanggil komponen aksi melayang dan modal */}
         <FloatingActions />
-
-        {/* Modal keranjang diletakkan di root agar bisa dipanggil dari mana saja */}
         <CartModal />
 
       </body>
     </html>
   );
 }
-            </p>
-          </div>
         </footer>
 
       </body>
