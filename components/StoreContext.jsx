@@ -15,7 +15,17 @@ function cleanTokoId(value) {
 function readInitialTokoId() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
-  const fromQuery = cleanTokoId(params.get('tokoId') || params.get('store'));
+  let fromQuery = null;
+
+  // URLSearchParams bersifat case-sensitive. Untuk testing/manual gateway,
+  // terima variasi penulisan umum seperti tokoId, tokoid, dan store.
+  for (const [key, value] of params.entries()) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (normalizedKey === 'tokoid' || normalizedKey === 'storeid' || normalizedKey === 'store') {
+      fromQuery = cleanTokoId(value);
+      if (fromQuery) break;
+    }
+  }
   if (fromQuery) return fromQuery;
   try {
     return cleanTokoId(window.localStorage.getItem(STORE_CONTEXT_KEY));
