@@ -65,7 +65,7 @@ function GatewayContent() {
           ) : (
             <div className="qp-gateway-primary qp-gateway-primary-disabled" role="status" aria-live="polite">
               <span className="qp-gateway-icon" aria-hidden="true">🛒</span>
-              <span><strong>Jelajahi Toko</strong><small>Buka tautan/QR toko untuk masuk</small></span>
+              <span><strong>Mulai Belanja</strong><small>Tambahkan tokoId pada URL</small></span>
             </div>
           )}
 
@@ -76,7 +76,7 @@ function GatewayContent() {
         </div>
 
         <p className="qp-gateway-note">
-          Gateway dapat dibuka dari tautan biasa maupun QR. QR bukan syarat; yang dibutuhkan Customer hanyalah konteks toko agar toko yang benar dapat dibuka.
+          Untuk testing manual, buka Gateway dengan <code>?tokoId=ID_TOKO</code>.
         </p>
       </section>
     </main>
