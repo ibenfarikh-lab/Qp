@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getUserProfile } from '../lib/services/authService';
 
 const AdminSessionContext = createContext(null);
@@ -10,7 +11,7 @@ export function AdminSessionProvider({ children }) {
   const [session, setSession] = useState({ loading: true, user: null, tokoId: null, allowed: false, error: '' });
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setSession({ loading: false, user: null, tokoId: null, allowed: false, error: 'Silakan login sebagai admin.' });
         return;
