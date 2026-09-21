@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { auth } from '../lib/firebase';
+import { auth, firebaseRuntimeDiagnostics } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { signIn, createAccount, deleteCurrentUser } from '../lib/services/authService';
 import { getUserProfile, bootstrapStoreAccount } from '../lib/services/authService';
@@ -16,6 +16,7 @@ export default function AuthPanel({ mode = 'login' }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [authDiagnostic, setAuthDiagnostic] = useState(null);
 
   const getReturnTo = () => {
     if (typeof window === 'undefined') return '/customer';
@@ -42,6 +43,7 @@ export default function AuthPanel({ mode = 'login' }) {
     setLoading(true);
     setError('');
     setMessage('');
+    setAuthDiagnostic(null);
 
     try {
       if (!isRegister) {
@@ -65,6 +67,13 @@ export default function AuthPanel({ mode = 'login' }) {
     } catch (err) {
       console.error('[QP Auth] Gagal autentikasi:', err);
       setError(err?.message || 'Proses autentikasi gagal.');
+      if (err?.code === 'auth/api-key-not-valid') {
+        setAuthDiagnostic({
+          ...firebaseRuntimeDiagnostics,
+          origin: typeof window !== 'undefined' ? window.location.origin : '(server)',
+          hostname: typeof window !== 'undefined' ? window.location.hostname : '(server)',
+        });
+      }
       if (isRegister && auth.currentUser) {
         try { await deleteCurrentUser(); } catch (cleanupError) { console.warn('[QP Auth] Cleanup akun gagal:', cleanupError); }
       }
@@ -92,6 +101,18 @@ export default function AuthPanel({ mode = 'login' }) {
           <label><span>Password</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isRegister ? 'new-password' : 'current-password'} placeholder="Minimal 6 karakter" required /></label>
 
           {error && <div className="auth-error" role="alert">{error}</div>}
+          {authDiagnostic && (
+            <div className="auth-error" style={{ marginTop: 10, fontSize: '0.78rem', lineHeight: 1.45 }}>
+              <strong>Diagnostik runtime Firebase</strong><br />
+              Project: {authDiagnostic.projectId || '-'}<br />
+              Auth domain: {authDiagnostic.authDomain || '-'}<br />
+              App ID: {authDiagnostic.appId || '-'}<br />
+              API key: {authDiagnostic.apiKeyFingerprint} ({authDiagnostic.apiKeyLength} karakter)<br />
+              Auth app: {authDiagnostic.authAppName}<br />
+              Domain saat ini: {authDiagnostic.hostname}<br />
+              Origin: {authDiagnostic.origin}
+            </div>
+          )}
           {message && <div className="auth-success">{message}</div>}
           <button className="auth-primary" disabled={loading}>{loading ? 'Memproses...' : isRegister ? '🏪 Buat Toko' : '🔐 Masuk'}</button>
         </form>
