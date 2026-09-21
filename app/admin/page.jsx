@@ -5,6 +5,7 @@ import { subscribeOrders } from '../../lib/services/orderService';
 import { subscribeProducts } from '../../lib/services/productService';
 import { subscribeChats } from '../../lib/services/chatService';
 import { useAdminSession } from '../../components/AdminSessionContext';
+import AdminAiPanel from '../../components/AdminAiPanel';
 
 function money(value) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -22,17 +23,57 @@ export default function AdminDashboardPage() {
   const [products, setProducts] = useState([]);
   const [chats, setChats] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [dataError, setDataError] = useState('');
 
   useEffect(() => {
-    if (!tokoId) return undefined;
+    if (!tokoId) {
+      setLoadingData(true);
+      setDataError('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    const ready = { orders: false, products: false, chats: false };
+
     setLoadingData(true);
+    setDataError('');
+
+    const markReady = (key) => {
+      ready[key] = true;
+      if (!cancelled && Object.values(ready).every(Boolean)) setLoadingData(false);
+    };
+
+    const markError = (key, error) => {
+      console.error(`[QP Dashboard] ${key}:`, error);
+      ready[key] = true;
+      if (!cancelled) {
+        setDataError('Sebagian data dashboard tidak dapat dimuat. Coba refresh halaman.');
+        if (Object.values(ready).every(Boolean)) setLoadingData(false);
+      }
+    };
+
     const unsubs = [
-      subscribeOrders(tokoId, (rows) => setOrders(rows), (error) => console.error('[QP Dashboard] Pesanan:', error)),
-      subscribeProducts(tokoId, (rows) => setProducts(rows), (error) => console.error('[QP Dashboard] Produk:', error)),
-      subscribeChats(tokoId, (rows) => setChats(rows), (error) => console.error('[QP Dashboard] Chat:', error)),
+      subscribeOrders(tokoId, (rows) => {
+        if (cancelled) return;
+        setOrders(rows);
+        markReady('orders');
+      }, (error) => markError('Pesanan', error)),
+      subscribeProducts(tokoId, (rows) => {
+        if (cancelled) return;
+        setProducts(rows);
+        markReady('products');
+      }, (error) => markError('Produk', error)),
+      subscribeChats(tokoId, (rows) => {
+        if (cancelled) return;
+        setChats(rows);
+        markReady('chats');
+      }, (error) => markError('Chat', error)),
     ];
-    setLoadingData(false);
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
+
+    return () => {
+      cancelled = true;
+      unsubs.forEach((unsubscribe) => unsubscribe());
+    };
   }, [tokoId]);
 
   const stats = useMemo(() => {
@@ -65,12 +106,15 @@ export default function AdminDashboardPage() {
           <article><span>⚠️ Stok Menipis</span><strong>{stats.lowStock}</strong><small>stok ≤ 5</small></article>
         </div>
 
+        <AdminAiPanel tokoId={tokoId} user={user} />
+
         <div className="admin-dashboard-grid">
           <section className="admin-dashboard-card">
             <div className="admin-dashboard-card-head"><h2>Pesanan Terbaru</h2><a href="/admin/orders">Lihat semua</a></div>
             {loadingData && <div className="admin-dashboard-empty">Memuat data...</div>}
-            {!loadingData && !recentOrders.length && <div className="admin-dashboard-empty">Belum ada pesanan.</div>}
-            {!loadingData && recentOrders.map((order) => (
+            {!loadingData && dataError && <div className="admin-dashboard-empty">{dataError}</div>}
+            {!loadingData && !dataError && !recentOrders.length && <div className="admin-dashboard-empty">Belum ada pesanan.</div>}
+            {!loadingData && !dataError && recentOrders.map((order) => (
               <div className="admin-dashboard-row" key={order.id}>
                 <span><b>{order.kodePesanan || `#${order.id.slice(0, 8)}`}</b><small>{order.pelanggan?.nama || 'Pelanggan'}</small></span>
                 <span><strong>{money(order.total)}</strong><em className={`dashboard-status status-${String(order.status || 'menunggu').toLowerCase()}`}>{order.status || 'menunggu'}</em></span>
@@ -80,8 +124,10 @@ export default function AdminDashboardPage() {
 
           <section className="admin-dashboard-card">
             <div className="admin-dashboard-card-head"><h2>Stok Menipis</h2><span>{stats.lowStock} produk</span></div>
-            {!lowStockProducts.length && <div className="admin-dashboard-empty">Tidak ada stok yang menipis.</div>}
-            {lowStockProducts.map((product) => (
+            {loadingData && <div className="admin-dashboard-empty">Memuat data...</div>}
+            {!loadingData && dataError && <div className="admin-dashboard-empty">{dataError}</div>}
+            {!loadingData && !dataError && !lowStockProducts.length && <div className="admin-dashboard-empty">Tidak ada stok yang menipis.</div>}
+            {!loadingData && !dataError && lowStockProducts.map((product) => (
               <div className="admin-dashboard-row" key={product.id}>
                 <span><b>{product.nama || 'Produk'}</b><small>{product.satuan || 'unit'}</small></span>
                 <strong className="dashboard-stock">{Number(product.stok || 0)}</strong>
