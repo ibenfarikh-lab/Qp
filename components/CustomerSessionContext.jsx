@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { auth } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getUserProfile } from '../lib/services/authService';
 
 const CustomerSessionContext = createContext(null);
@@ -15,7 +16,7 @@ export function CustomerSessionProvider({ children }) {
   useEffect(() => {
     let active = true;
 
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!active) return;
 
       setAuthUser(user || null);
