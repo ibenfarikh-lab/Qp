@@ -52,3 +52,8 @@ Customer identity is separated from Store Context. Profile editing is limited to
 
 ## Phase 08 — Customer AI & Smart Assistance
 Implemented server-side Customer AI with Store Context/catalog/cart context, authenticated Customer access, Admin handoff, and no client-side provider key. Runtime/provider verification remains pending.
+
+
+## BAB 23 Follow-up — Customer Guest Entry Flow
+
+The final architecture audit identified that the Customer page was still login-gated. Phase 24 aligns the implementation with the locked Gateway/Store Context contract: storefront browsing is available without authentication; account-gated features request login only when needed. Checkout preserves the guest cart across the login redirect. See `implementation/phase-24-customer-guest-entry-flow.md`.
