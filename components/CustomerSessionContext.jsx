@@ -8,7 +8,7 @@ const CustomerSessionContext = createContext(null);
 
 export function CustomerSessionProvider({ children }) {
   const [authUser, setAuthUser] = useState(null);
-  const [tokoId, setTokoId] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -19,7 +19,7 @@ export function CustomerSessionProvider({ children }) {
       if (!active) return;
 
       setAuthUser(user || null);
-      setTokoId(null);
+      setUserProfile(null);
       setError('');
 
       if (!user) {
@@ -35,19 +35,14 @@ export function CustomerSessionProvider({ children }) {
         }
 
         const pengguna = penggunaSnap.data() || {};
-        if (String(pengguna.role || '').toLowerCase() === 'admin') {
+        const role = String(pengguna.role || 'customer').toLowerCase();
+        if (role === 'admin') {
           window.location.replace('/admin');
           return;
         }
-        if (String(pengguna.status || '').toLowerCase() !== 'aktif') {
-          throw new Error('Akun pelanggan belum aktif. Silakan hubungi toko.');
-        }
-        if (!pengguna.tokoId) {
-          throw new Error('Akun ini belum memiliki tokoId.');
-        }
 
         if (!active) return;
-        setTokoId(pengguna.tokoId);
+        setUserProfile(pengguna);
       } catch (sessionError) {
         console.error('[QP Customer Session] Gagal membaca profil:', sessionError);
         if (!active) return;
@@ -65,16 +60,12 @@ export function CustomerSessionProvider({ children }) {
 
   const value = useMemo(() => ({
     authUser,
-    tokoId,
+    userProfile,
     loading,
     error,
-  }), [authUser, tokoId, loading, error]);
+  }), [authUser, userProfile, loading, error]);
 
-  return (
-    <CustomerSessionContext.Provider value={value}>
-      {children}
-    </CustomerSessionContext.Provider>
-  );
+  return <CustomerSessionContext.Provider value={value}>{children}</CustomerSessionContext.Provider>;
 }
 
 export function useCustomerSession() {

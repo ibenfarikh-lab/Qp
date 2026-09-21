@@ -16,13 +16,19 @@ export default function AuthPanel({ mode = 'login' }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const getReturnTo = () => {
+    if (typeof window === 'undefined') return '/customer';
+    const candidate = new URLSearchParams(window.location.search).get('returnTo') || '/customer';
+    return candidate.startsWith('/customer') ? candidate : '/customer';
+  };
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (!user) return;
       try {
         const snap = await getUserProfile(user.uid);
         const data = snap.data() || {};
-        window.location.replace(data.role === 'admin' ? '/admin' : '/');
+        window.location.replace(data.role === 'admin' ? '/admin' : getReturnTo());
       } catch (err) {
         console.error('[QP Auth] Gagal membaca profil:', err);
       }
@@ -42,7 +48,7 @@ export default function AuthPanel({ mode = 'login' }) {
         const profile = await getUserProfile(credential.user.uid);
         if (!profile.exists) throw new Error('Akun Firebase belum memiliki profil pengguna.');
         const data = profile.data() || {};
-        window.location.replace(data.role === 'admin' ? '/admin' : '/');
+        window.location.replace(data.role === 'admin' ? '/admin' : getReturnTo());
         return;
       }
 
@@ -92,7 +98,7 @@ export default function AuthPanel({ mode = 'login' }) {
         <Link className="auth-switch" href={isRegister ? '/login' : '/register'}>
           {isRegister ? 'Sudah punya akun? Masuk' : 'Belum punya akun toko? Daftar sekarang'}
         </Link>
-        <p className="auth-note">Registrasi publik hanya membuat akun <strong>admin toko</strong>. Akun pelanggan dapat dibuat/diatur melalui alur pelanggan yang nantinya kita kunci dengan tokoId.</p>
+        <p className="auth-note">Registrasi publik di halaman ini hanya membuat akun <strong>admin toko</strong>. Akun Customer menggunakan alur autentikasi Customer tersendiri.</p>
       </section>
     </main>
   );

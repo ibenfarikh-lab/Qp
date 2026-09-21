@@ -1,6 +1,6 @@
 'use client';
 
-export default function SettingsPanel({ theme, setTheme, onLogout }) {
+export default function SettingsPanel({ theme, setTheme, onLogout, onProfile }) {
   return (
     <section className="settings-panel">
       <h2>⚙️ Pengaturan</h2>
@@ -23,8 +23,13 @@ export default function SettingsPanel({ theme, setTheme, onLogout }) {
         </div>
       </div>
       <div className="setting-card">
+        <b>Akun</b>
+        <p>Kelola nama, nomor WhatsApp, dan alamat akun Customer.</p>
+        <button type="button" className="settings-secondary-btn" onClick={onProfile}>👤 Buka Profil Saya</button>
+      </div>
+      <div className="setting-card">
         <b>Informasi</b>
-        <p>Panel pelanggan KasirQuh. Pilihan tema tersimpan di perangkat ini.</p>
+        <p>Panel Customer KasirQuh. Preferensi tampilan tersimpan di perangkat ini.</p>
       </div>
       <div className="setting-card settings-session-card">
         <b>Sesi akun</b>

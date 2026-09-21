@@ -4,11 +4,6 @@ import { useEffect, useState } from 'react';
 import { createCustomerOrder } from '../lib/services/orderService';
 import { subscribePaymentSettings } from '../lib/services/storeService';
 
-function makeOrderCode() {
-  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-  const random = Math.floor(100 + Math.random() * 900);
-  return `ORD-${stamp}-${random}`;
-}
 
 export default function CheckoutModal({
   isOpen,

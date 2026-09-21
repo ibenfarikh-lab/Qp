@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { subscribeChats, subscribeChatMessages, markChatRead, sendAdminMessage } from '../lib/services/chatService';
+import { subscribeChats, subscribeChatMessages, markChatRead, sendAdminMessage, subscribeRumpiMessages, deleteRumpiMessage } from '../lib/services/chatService';
 
 function formatTime(value) {
   if (!value) return '';
@@ -11,7 +11,9 @@ function formatTime(value) {
 }
 
 export default function AdminChatPanel({ tokoId, authUser }) {
+  const [mode, setMode] = useState('admin');
   const [conversations, setConversations] = useState([]);
+  const [rumpiMessages, setRumpiMessages] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -20,10 +22,7 @@ export default function AdminChatPanel({ tokoId, authUser }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const selectedChat = useMemo(
-    () => conversations.find((item) => item.id === selectedId) || null,
-    [conversations, selectedId]
-  );
+  const selectedChat = useMemo(() => conversations.find((item) => item.id === selectedId) || null, [conversations, selectedId]);
 
   useEffect(() => {
     if (!tokoId) return undefined;
@@ -37,16 +36,30 @@ export default function AdminChatPanel({ tokoId, authUser }) {
       });
       setConversations(rows);
       setSelectedId((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id || null);
-      setLoading(false);
+      if (mode === 'admin') setLoading(false);
     }, (snapshotError) => {
       console.error('[QP Admin Chat] Gagal membaca inbox:', snapshotError);
-      setError('Inbox chat belum dapat dibuka. Periksa izin Firestore.');
+      if (mode === 'admin') setError('Inbox chat belum dapat dibuka. Periksa izin Firestore.');
       setLoading(false);
     });
-  }, [tokoId]);
+  }, [tokoId, mode]);
 
   useEffect(() => {
-    if (!tokoId || !selectedId) {
+    if (!tokoId || mode !== 'rumpi') return undefined;
+    setLoading(true);
+    setError('');
+    return subscribeRumpiMessages(tokoId, (rows) => {
+      setRumpiMessages(rows);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('[QP Admin Chat] Gagal membaca Chat Rumpi:', snapshotError);
+      setError('Chat Rumpi belum dapat dibuka. Periksa izin Firestore.');
+      setLoading(false);
+    });
+  }, [tokoId, mode]);
+
+  useEffect(() => {
+    if (!tokoId || mode !== 'admin' || !selectedId) {
       setMessages([]);
       setMessagesLoading(false);
       return undefined;
@@ -54,11 +67,6 @@ export default function AdminChatPanel({ tokoId, authUser }) {
     setMessagesLoading(true);
     setError('');
     const unsubscribe = subscribeChatMessages(tokoId, selectedId, (rows) => {
-      rows.sort((a, b) => {
-        const at = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-        const bt = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
-        return at - bt;
-      });
       setMessages(rows);
       setMessagesLoading(false);
     }, (snapshotError) => {
@@ -67,16 +75,14 @@ export default function AdminChatPanel({ tokoId, authUser }) {
       setMessagesLoading(false);
       setError('Pesan percakapan belum dapat dibuka. Periksa izin Firestore.');
     });
-
     markChatRead(tokoId, selectedId).catch(() => {});
     return () => unsubscribe();
-  }, [tokoId, selectedId]);
+  }, [tokoId, selectedId, mode]);
 
   const sendMessage = async (event) => {
     event?.preventDefault();
     const text = draft.trim();
     if (!text || !selectedChat || !authUser || sending) return;
-
     setSending(true);
     setError('');
     try {
@@ -90,73 +96,75 @@ export default function AdminChatPanel({ tokoId, authUser }) {
     }
   };
 
+  const moderateRumpiMessage = async (message) => {
+    if (!window.confirm('Hapus pesan ini dari Chat Rumpi?')) return;
+    try {
+      await deleteRumpiMessage(tokoId, message.id);
+    } catch (deleteError) {
+      console.error('[QP Admin Chat] Gagal moderasi Chat Rumpi:', deleteError);
+      setError('Pesan belum dapat dihapus.');
+    }
+  };
+
   if (!tokoId) return <section className="admin-chat-panel"><div className="admin-chat-empty">Toko belum tersedia.</div></section>;
+
+  const unread = conversations.reduce((sum, item) => sum + Number(item.unreadByAdmin || 0), 0);
 
   return (
     <section className="admin-chat-panel">
       <header className="admin-chat-heading">
-        <div>
-          <span>ADMIN • CHAT TOKO</span>
-          <h2>Pesan Pelanggan</h2>
-        </div>
-        <strong>{conversations.reduce((sum, item) => sum + Number(item.unreadByAdmin || 0), 0)}</strong>
+        <div><span>ADMIN • KOMUNIKASI TOKO</span><h2>{mode === 'rumpi' ? 'Moderasi Chat Rumpi' : 'Pesan Pelanggan'}</h2></div>
+        <strong>{mode === 'rumpi' ? rumpiMessages.length : unread}</strong>
       </header>
+
+      <div className="admin-chat-mode-tabs" role="tablist" aria-label="Jenis komunikasi">
+        <button type="button" className={mode === 'admin' ? 'active' : ''} onClick={() => { setMode('admin'); setError(''); }}>💬 Chat Admin {unread > 0 && <b>{unread}</b>}</button>
+        <button type="button" className={mode === 'rumpi' ? 'active' : ''} onClick={() => { setMode('rumpi'); setError(''); }}>🗣️ Chat Rumpi</button>
+      </div>
 
       {error && <div className="admin-chat-error">{error}</div>}
 
-      <div className="admin-chat-layout">
-        <aside className="admin-chat-list">
-          {loading && <div className="admin-chat-empty">Memuat inbox...</div>}
-          {!loading && !conversations.length && <div className="admin-chat-empty">Belum ada chat pelanggan.</div>}
-          {!loading && conversations.map((chat) => (
-            <button
-              key={chat.id}
-              type="button"
-              className={`admin-chat-item ${selectedId === chat.id ? 'selected' : ''}`}
-              onClick={() => setSelectedId(chat.id)}
-            >
-              <span className="admin-chat-avatar">👤</span>
-              <span className="admin-chat-item-body">
-                <b>{chat.namaPelanggan || 'Pelanggan'}</b>
-                <small>{chat.lastMessage || 'Belum ada pesan'}</small>
-                <em>{formatTime(chat.updatedAt)}</em>
-              </span>
-              {Number(chat.unreadByAdmin || 0) > 0 && <i>{chat.unreadByAdmin > 99 ? '99+' : chat.unreadByAdmin}</i>}
-            </button>
+      {mode === 'rumpi' ? (
+        <div className="admin-rumpi-list">
+          {loading && <div className="admin-chat-empty">Memuat Chat Rumpi...</div>}
+          {!loading && !rumpiMessages.length && <div className="admin-chat-empty">Belum ada obrolan.</div>}
+          {!loading && rumpiMessages.map((message) => (
+            <article key={message.id} className="admin-rumpi-item">
+              <div className="admin-rumpi-meta"><b>{message.senderName || 'Pelanggan'}</b><small>{formatTime(message.createdAt)}</small></div>
+              <p>{message.text}</p>
+              <button type="button" onClick={() => moderateRumpiMessage(message)}>🗑️ Hapus</button>
+            </article>
           ))}
-        </aside>
-
-        <div className="admin-chat-thread-wrap">
-          {!selectedChat ? (
-            <div className="admin-chat-empty">Pilih percakapan pelanggan.</div>
-          ) : (
-            <>
-              <div className="admin-chat-selected-head">
-                <div><b>{selectedChat.namaPelanggan || 'Pelanggan'}</b><small>{selectedChat.emailPelanggan || selectedChat.id}</small></div>
-              </div>
+        </div>
+      ) : (
+        <div className="admin-chat-layout">
+          <aside className="admin-chat-list">
+            {loading && <div className="admin-chat-empty">Memuat inbox...</div>}
+            {!loading && !conversations.length && <div className="admin-chat-empty">Belum ada chat pelanggan.</div>}
+            {!loading && conversations.map((chat) => (
+              <button key={chat.id} type="button" className={`admin-chat-item ${selectedId === chat.id ? 'selected' : ''}`} onClick={() => setSelectedId(chat.id)}>
+                <span className="admin-chat-avatar">👤</span>
+                <span className="admin-chat-item-body"><b>{chat.namaPelanggan || 'Pelanggan'}</b><small>{chat.lastMessage || 'Belum ada pesan'}</small><em>{formatTime(chat.updatedAt)}</em></span>
+                {Number(chat.unreadByAdmin || 0) > 0 && <i>{chat.unreadByAdmin > 99 ? '99+' : chat.unreadByAdmin}</i>}
+              </button>
+            ))}
+          </aside>
+          <div className="admin-chat-thread-wrap">
+            {!selectedChat ? <div className="admin-chat-empty">Pilih percakapan pelanggan.</div> : <>
+              <div className="admin-chat-selected-head"><div><b>{selectedChat.namaPelanggan || 'Pelanggan'}</b><small>{selectedChat.emailPelanggan || selectedChat.id}</small></div></div>
               <div className="admin-chat-thread">
                 {messagesLoading && <div className="admin-chat-empty">Memuat pesan...</div>}
                 {!messagesLoading && !messages.length && <div className="admin-chat-empty">Belum ada pesan.</div>}
                 {!messagesLoading && messages.map((message) => {
                   const mine = message.senderRole === 'admin' || message.senderId === authUser?.uid;
-                  return (
-                    <div key={message.id} className={`chat-message-row ${mine ? 'mine' : 'theirs'}`}>
-                      <div className={`chat-bubble ${mine ? 'mine' : 'theirs'}`}>
-                        <p>{message.text}</p>
-                        <small>{formatTime(message.createdAt)}</small>
-                      </div>
-                    </div>
-                  );
+                  return <div key={message.id} className={`chat-message-row ${mine ? 'mine' : 'theirs'}`}><div className={`chat-bubble ${mine ? 'mine' : 'theirs'}`}><p>{message.text}</p><small>{formatTime(message.createdAt)}</small></div></div>;
                 })}
               </div>
-              <form className="chat-composer" onSubmit={sendMessage}>
-                <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Balas pelanggan..." maxLength={1000} disabled={sending} />
-                <button type="submit" disabled={!draft.trim() || sending}>{sending ? '…' : '➤'}</button>
-              </form>
-            </>
-          )}
+              <form className="chat-composer" onSubmit={sendMessage}><input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Balas pelanggan..." maxLength={1000} disabled={sending} /><button type="submit" disabled={!draft.trim() || sending}>{sending ? '…' : '➤'}</button></form>
+            </>}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
