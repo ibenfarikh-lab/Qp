@@ -42,6 +42,13 @@ service cloud.firestore {
         && myTokoId() == tokoId;
     }
 
+    // Customer identity is global in V4; store ownership is supplied by Store Context.
+    function isActiveCustomer() {
+      return signedIn()
+        && myUser().role != 'admin'
+        && myUser().status == 'aktif';
+    }
+
     function paymentTransitionAllowed(currentStatus, nextStatus) {
       return currentStatus == nextStatus
         || (currentStatus == 'menunggu_konfirmasi' && nextStatus == 'menunggu_verifikasi')
@@ -59,7 +66,13 @@ service cloud.firestore {
         && request.resource.data.role == 'admin'
         && request.resource.data.tokoId == uid
         && request.resource.data.status == 'aktif';
-      allow update, delete: if false;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && resource.data.role != 'admin'
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama', 'telepon', 'alamat', 'updatedAt']);
+      allow delete: if false;
     }
 
     match /toko/{tokoId} {
@@ -75,7 +88,9 @@ service cloud.firestore {
       allow delete: if isAdminFor(tokoId) && resource.data.pemilikUid == request.auth.uid;
 
       match /identitas/{docId} {
-        allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
+        // Identitas utama dipakai Gateway/Preview sebagai data storefront publik.
+        // Dokumen identitas lain tetap privat.
+        allow read: if docId == 'utama' || isAdminFor(tokoId) || isCustomerFor(tokoId);
         allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
           && request.resource.data.keys().hasOnly(['namaToko', 'logo', 'alamat', 'telepon', 'updatedAt', 'updatedBy']);
         allow update: if isAdminFor(tokoId)
@@ -86,7 +101,9 @@ service cloud.firestore {
       }
 
       match /pengaturan/{docId} {
-        allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
+        // Hanya pengaturan beranda yang boleh dibaca publik.
+        // Payment tetap privat dan hanya admin yang boleh membacanya.
+        allow read: if (docId == 'beranda') || isAdminFor(tokoId) || isCustomerFor(tokoId);
         allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
           && ((docId == 'pembayaran' && request.resource.data.keys().hasOnly(['bank', 'nomor', 'atasNama', 'updatedAt', 'updatedBy']))
             || (docId == 'beranda' && request.resource.data.keys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'updatedAt', 'updatedBy'])));
@@ -97,7 +114,8 @@ service cloud.firestore {
       }
 
       match /kategori/{kategoriId} {
-        allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
+        // Query publik wajib dibatasi ke kategori aktif di client/service.
+        allow read: if (resource.data.aktif == true) || isAdminFor(tokoId) || isCustomerFor(tokoId);
         allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
           && request.resource.data.keys().hasOnly(['nama', 'ikon', 'urutan', 'aktif', 'createdAt', 'updatedAt', 'updatedBy']);
         allow update: if isAdminFor(tokoId)
@@ -109,7 +127,8 @@ service cloud.firestore {
       }
 
       match /produk/{produkId} {
-        allow read: if isAdminFor(tokoId) || isCustomerFor(tokoId);
+        // Query publik wajib memakai where('aktif', '==', true).
+        allow read: if (resource.data.aktif == true) || isAdminFor(tokoId) || isCustomerFor(tokoId);
         allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
           && request.resource.data.keys().hasOnly(['nama', 'harga', 'hargaJual', 'stok', 'satuan', 'kategoriId', 'foto', 'deskripsi', 'aktif', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'stokTerakhirBerubah', 'stokSumber']);
         allow update: if isAdminFor(tokoId)
@@ -125,7 +144,7 @@ service cloud.firestore {
       match /pesanan/{orderId} {
         // Admin boleh melihat/mengelola seluruh pesanan tokonya.
         allow read: if isAdminFor(tokoId)
-          || (isCustomerFor(tokoId) && resource.data.uidPelanggan == request.auth.uid);
+          || (isActiveCustomer() && resource.data.uidPelanggan == request.auth.uid);
 
         // Pembuatan order pelanggan dilakukan oleh trusted backend/callable function.
         // Client tidak boleh membuat dokumen order secara langsung.
@@ -167,7 +186,7 @@ service cloud.firestore {
             )
           )
           || (
-            isCustomerFor(tokoId)
+            isActiveCustomer()
             && resource.data.uidPelanggan == request.auth.uid
             && resource.data.metodePembayaran == 'transfer'
             && request.resource.data.diff(resource.data).affectedKeys()
@@ -186,11 +205,26 @@ service cloud.firestore {
         allow delete: if isAdminFor(tokoId);
       }
 
+      // Chat Rumpi: ruang komunitas per toko. Customer aktif dapat membaca/mengirim;
+      // admin pemilik toko dapat memoderasi dengan menghapus pesan.
+      match /chatRumpi/{messageId} {
+        allow read: if isActiveCustomer() || isAdminFor(tokoId);
+        allow create: if isActiveCustomer()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderRole == 'pelanggan'
+          && request.resource.data.tokoId == tokoId
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+        allow update: if isAdminFor(tokoId);
+        allow delete: if isAdminFor(tokoId);
+      }
+
       match /chatPelanggan/{chatId} {
         allow read: if isAdminFor(tokoId)
-          || (isCustomerFor(tokoId) && chatId == request.auth.uid);
+          || (isActiveCustomer() && chatId == request.auth.uid);
 
-        allow create: if isCustomerFor(tokoId)
+        allow create: if isActiveCustomer()
           && chatId == request.auth.uid
           && request.resource.data.uidPelanggan == request.auth.uid
           && request.resource.data.tokoId == tokoId;
@@ -204,7 +238,7 @@ service cloud.firestore {
             && request.resource.data.uidPelanggan == resource.data.uidPelanggan
           )
           || (
-            isCustomerFor(tokoId)
+            isActiveCustomer()
             && chatId == request.auth.uid
             && request.resource.data.uidPelanggan == resource.data.uidPelanggan
             && request.resource.data.uidPelanggan == request.auth.uid
@@ -220,7 +254,7 @@ service cloud.firestore {
 
         match /messages/{messageId} {
           allow read: if isAdminFor(tokoId)
-            || (isCustomerFor(tokoId) && chatId == request.auth.uid);
+            || (isActiveCustomer() && chatId == request.auth.uid);
 
           allow create: if (
               isAdminFor(tokoId)
@@ -229,7 +263,7 @@ service cloud.firestore {
               && request.resource.data.tokoId == tokoId
             )
             || (
-              isCustomerFor(tokoId)
+              isActiveCustomer()
               && chatId == request.auth.uid
               && request.resource.data.senderId == request.auth.uid
               && request.resource.data.senderRole == 'pelanggan'
