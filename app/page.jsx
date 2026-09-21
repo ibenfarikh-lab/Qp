@@ -26,7 +26,7 @@ function GatewayContent() {
         <p className="qp-gateway-eyebrow">KASIRQUH V4</p>
         <h1 id="gateway-title">{namaToko || 'Selamat datang'}</h1>
         <p className="qp-gateway-subtitle">
-          {namaToko ? 'Lihat preview toko sebelum menjelajah lebih dalam.' : 'Selamat datang di KasirQuh.'}
+          {namaToko ? 'Pilih toko dan mulai belanja tanpa harus login dulu.' : 'Selamat datang di KasirQuh.'}
         </p>
 
         {hasStoreContext && (
@@ -60,7 +60,7 @@ function GatewayContent() {
           {customerHref ? (
             <a className="qp-gateway-primary" href={customerHref}>
               <span className="qp-gateway-icon" aria-hidden="true">🛒</span>
-              <span><strong>Jelajahi Toko</strong><small>Masuk ke Customer</small></span>
+              <span><strong>Mulai Belanja</strong><small>Masuk ke toko</small></span>
             </a>
           ) : (
             <div className="qp-gateway-primary qp-gateway-primary-disabled" role="status" aria-live="polite">
