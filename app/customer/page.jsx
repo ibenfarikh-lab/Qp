@@ -20,6 +20,16 @@ import CustomerAiPanel from '../../components/CustomerAiPanel';
 
 const DEFAULT_CATEGORY = 'Home';
 
+function GuestFeatureGate({ title, description, href }) {
+  return (
+    <section className="pos-container" style={{ textAlign: 'center', padding: '32px 18px', marginTop: '18px' }}>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <a className="auth-inline-link" href={`/login?returnTo=${encodeURIComponent(href)}`}>🔐 Masuk / Daftar</a>
+    </section>
+  );
+}
+
 function CustomerHomeContent() {
   const { authUser, userProfile, loading: sessionLoading, error: sessionError } = useCustomerSession();
   const { tokoId, storeIdentity, storeSettings, produkList, kategoriList, loading: storeContextLoading, error: storeContextError } = useStoreContext();
@@ -37,6 +47,7 @@ function CustomerHomeContent() {
   const [chatPrefill, setChatPrefill] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const [showAi, setShowAi] = useState(false);
+  const [pendingCheckoutRestore, setPendingCheckoutRestore] = useState(false);
 
   useEffect(() => {
     try {
@@ -48,6 +59,36 @@ function CustomerHomeContent() {
       console.warn('[QP] Tema lokal tidak dapat dibaca:', error);
     }
   }, []);
+
+  useEffect(() => {
+    if (!tokoId) return;
+    try {
+      const raw = localStorage.getItem(`kasirquh-pending-cart:${tokoId}`);
+      if (!raw) return;
+      const savedCart = JSON.parse(raw);
+      if (!Array.isArray(savedCart) || !savedCart.length) {
+        localStorage.removeItem(`kasirquh-pending-cart:${tokoId}`);
+        return;
+      }
+      setKeranjang(savedCart);
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('checkout') === '1' && authUser) {
+        setPendingCheckoutRestore(true);
+        params.delete('checkout');
+        const nextQuery = params.toString();
+        window.history.replaceState({}, '', `/customer${nextQuery ? `?${nextQuery}` : ''}`);
+        localStorage.removeItem(`kasirquh-pending-cart:${tokoId}`);
+      }
+    } catch (error) {
+      console.warn('[QP Customer] Keranjang sementara tidak dapat dipulihkan:', error);
+    }
+  }, [tokoId, authUser]);
+
+  useEffect(() => {
+    if (!pendingCheckoutRestore || !authUser || !keranjang.length) return;
+    setPendingCheckoutRestore(false);
+    setIsCheckoutOpen(true);
+  }, [pendingCheckoutRestore, authUser, keranjang.length]);
 
   const changeCatalogMode = (nextMode) => {
     if (!['list', 'grid', 'card'].includes(nextMode)) return;
@@ -121,6 +162,16 @@ function CustomerHomeContent() {
 
   const handleOpenCheckout = () => {
     if (!keranjang.length || !tokoId) return;
+    if (!authUser) {
+      try {
+        localStorage.setItem(`kasirquh-pending-cart:${tokoId}`, JSON.stringify(keranjang));
+      } catch (error) {
+        console.warn('[QP Customer] Keranjang sementara tidak dapat disimpan:', error);
+      }
+      const returnTo = `/customer?tokoId=${encodeURIComponent(tokoId)}&checkout=1`;
+      window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+      return;
+    }
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
   };
@@ -159,21 +210,8 @@ function CustomerHomeContent() {
     return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>Memuat sesi...</section></main>;
   }
 
-  if (!authUser) {
-    return (
-      <main className="main-content" style={{ padding: '32px 18px' }}>
-        <section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}>
-          <h2>Silakan login terlebih dahulu</h2>
-          <p>Login diperlukan untuk menjelajahi toko lebih dalam dan menggunakan fitur Customer.</p>
-          {sessionError && <p className="auth-error" role="alert">{sessionError}</p>}
-          <a className="auth-inline-link" href={`/login?returnTo=${encodeURIComponent(loginReturnTo)}`}>🔐 Masuk / Daftar</a>
-        </section>
-      </main>
-    );
-  }
-
   if (sessionError) {
-    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}><h2>Sesi toko belum siap</h2><p>{sessionError}</p><a className="auth-inline-link" href={`/login?returnTo=${encodeURIComponent(loginReturnTo)}`}>🔐 Kembali ke Login</a></section></main>;
+    return <main className="main-content" style={{ padding: '32px 18px' }}><section className="pos-container" style={{ textAlign: 'center', padding: '28px 18px' }}><h2>Akun belum siap</h2><p>{sessionError}</p><a className="auth-inline-link" href={`/login?returnTo=${encodeURIComponent(loginReturnTo)}`}>🔐 Masuk / Daftar</a></section></main>;
   }
 
   if (storeContextLoading) {
@@ -190,13 +228,13 @@ function CustomerHomeContent() {
         {activeNav === 'settings' && showProfile ? (
           <ProfilePanel authUser={authUser} userProfile={userProfile} onSaved={() => {}} onBack={() => setShowProfile(false)} />
         ) : activeNav === 'settings' ? (
-          <SettingsPanel theme={theme} setTheme={changeTheme} onLogout={handleLogout} onProfile={() => setShowProfile(true)} />
+          <SettingsPanel theme={theme} setTheme={changeTheme} loggedIn={Boolean(authUser)} onLogout={handleLogout} onLogin={() => { window.location.href = `/login?returnTo=${encodeURIComponent(loginReturnTo)}`; }} onProfile={() => setShowProfile(true)} />
         ) : activeNav === 'orders' ? (
-          <OrderHistory uid={authUser?.uid} />
+          authUser ? <OrderHistory uid={authUser.uid} /> : <GuestFeatureGate title="Pesanan Saya" description="Login diperlukan untuk melihat riwayat dan status pesanan." href={loginReturnTo} />
         ) : showAi ? (
           <CustomerAiPanel tokoId={tokoId} storeIdentity={storeIdentity} storeSettings={storeSettings} products={produkList} cart={keranjang} onAskAdmin={() => { setShowAi(false); setActiveNav('chat'); }} onClose={() => setShowAi(false)} />
         ) : activeNav === 'chat' ? (
-          <ChatPanel tokoId={tokoId} authUser={authUser} storeIdentity={storeIdentity} initialMessage={chatPrefill} onInitialMessageUsed={() => setChatPrefill('')} />
+          authUser ? <ChatPanel tokoId={tokoId} authUser={authUser} storeIdentity={storeIdentity} initialMessage={chatPrefill} onInitialMessageUsed={() => setChatPrefill('')} /> : <GuestFeatureGate title="Chat Toko" description="Login diperlukan untuk mengirim dan membaca percakapan Customer." href={loginReturnTo} />
         ) : (
           <>
             <Header namaToko={namaToko} infoToko={infoToko} />
