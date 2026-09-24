@@ -1,1 +1,0 @@
-export default function Page(){return <><h1>Products</h1><p className="muted">Fondasi modul products. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}

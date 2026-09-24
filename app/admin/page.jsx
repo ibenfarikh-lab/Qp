@@ -1,1 +1,0 @@
-export default function Admin(){return <><h1>Dashboard</h1><p className="muted">Fondasi UI Admin baru.</p><div className="stats"><div className="card stat">Pesanan<strong>—</strong></div><div className="card stat">Produk<strong>—</strong></div><div className="card stat">Pelanggan<strong>—</strong></div><div className="card stat">Omzet<strong>—</strong></div></div></>}
