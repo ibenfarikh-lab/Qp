@@ -1,9 +1,1 @@
-'use client';
-
-import AdminStoreSettingsPanel from '../../../components/AdminStoreSettingsPanel';
-import { useAdminSession } from '../../../components/AdminSessionContext';
-
-export default function AdminSettingsPage() {
-  const { tokoId, user } = useAdminSession();
-  return <AdminStoreSettingsPanel tokoId={tokoId} authUser={user} />;
-}
+export default function Page(){return <><h1>Settings</h1><p className="muted">Fondasi modul settings. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}
