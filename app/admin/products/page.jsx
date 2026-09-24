@@ -1,9 +1,1 @@
-'use client';
-
-import AdminProductPanel from '../../../components/AdminProductPanel';
-import { useAdminSession } from '../../../components/AdminSessionContext';
-
-export default function AdminProductsPage() {
-  const { tokoId, user } = useAdminSession();
-  return <AdminProductPanel tokoId={tokoId} authUser={user} />;
-}
+export default function Page(){return <><h1>Products</h1><p className="muted">Fondasi modul products. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}
