@@ -106,10 +106,10 @@ service cloud.firestore {
         allow read: if (docId == 'beranda') || isAdminFor(tokoId) || isCustomerFor(tokoId);
         allow create: if (isAdminFor(tokoId) || isAdminForAfter(tokoId))
           && ((docId == 'pembayaran' && request.resource.data.keys().hasOnly(['bank', 'nomor', 'atasNama', 'updatedAt', 'updatedBy']))
-            || (docId == 'beranda' && request.resource.data.keys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'updatedAt', 'updatedBy'])));
+            || (docId == 'beranda' && request.resource.data.keys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'promoAktif', 'promoJudul', 'promoDeskripsi', 'promoLabel', 'promoUpdatedAt', 'koinAktif', 'koinNama', 'koinPerRupiah', 'koinMinimumRedeem', 'koinUpdatedAt', 'updatedAt', 'updatedBy'])));
         allow update: if isAdminFor(tokoId)
           && ((docId == 'pembayaran' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bank', 'nomor', 'atasNama', 'updatedAt', 'updatedBy']))
-            || (docId == 'beranda' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'updatedAt', 'updatedBy'])));
+            || (docId == 'beranda' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tampilkanStok', 'tampilkanIdeMasak', 'tampilkanProdukTerlaris', 'jumlahProduk', 'tema', 'infoToko', 'promoAktif', 'promoJudul', 'promoDeskripsi', 'promoLabel', 'promoUpdatedAt', 'koinAktif', 'koinNama', 'koinPerRupiah', 'koinMinimumRedeem', 'koinUpdatedAt', 'updatedAt', 'updatedBy'])));
         allow delete: if isAdminFor(tokoId);
       }
 
