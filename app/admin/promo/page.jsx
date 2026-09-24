@@ -1,1 +1,1 @@
-
+export default function Page(){return <><h1>Promo</h1><p className="muted">Fondasi modul promo. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}
