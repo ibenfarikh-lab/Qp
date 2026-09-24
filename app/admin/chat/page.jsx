@@ -1,9 +1,1 @@
-'use client';
-
-import AdminChatPanel from '../../../components/AdminChatPanel';
-import { useAdminSession } from '../../../components/AdminSessionContext';
-
-export default function AdminChatPage() {
-  const { tokoId, user } = useAdminSession();
-  return <AdminChatPanel tokoId={tokoId} authUser={user} />;
-}
+export default function Page(){return <><h1>Chat</h1><p className="muted">Fondasi modul chat. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}
