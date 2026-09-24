@@ -9,7 +9,7 @@ function AdminGate({ children }) {
   const session = useAdminSession();
   const pathname = usePathname();
   const router = useRouter();
-  const active = pathname === '/admin' ? 'dashboard' : pathname.startsWith('/admin/products') ? 'products' : pathname.startsWith('/admin/orders') ? 'orders' : pathname.startsWith('/admin/chat') ? 'chat' : pathname.startsWith('/admin/settings') ? 'settings' : 'dashboard';
+  const active = pathname === '/admin' ? 'dashboard' : pathname.startsWith('/admin/products') ? 'products' : pathname.startsWith('/admin/stock') ? 'stock' : pathname.startsWith('/admin/customers') ? 'customers' : pathname.startsWith('/admin/reports') ? 'reports' : pathname.startsWith('/admin/promo') ? 'promo' : pathname.startsWith('/admin/loyalty') ? 'loyalty' : pathname.startsWith('/admin/orders') ? 'orders' : pathname.startsWith('/admin/chat') ? 'chat' : pathname.startsWith('/admin/settings') ? 'settings' : 'dashboard';
 
   useEffect(() => {
     if (!session.loading && !session.allowed) {
