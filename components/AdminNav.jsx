@@ -9,6 +9,11 @@ export default function AdminNav({ active = 'dashboard' }) {
     ['orders', '📋 Pesanan', '/admin/orders'],
     ['chat', '💬 Chat', '/admin/chat'],
     ['products', '📦 Produk', '/admin/products'],
+    ['stock', '📊 Stok', '/admin/stock'],
+    ['customers', '👥 Pelanggan', '/admin/customers'],
+    ['reports', '📈 Laporan', '/admin/reports'],
+    ['promo', '🏷️ Promo', '/admin/promo'],
+    ['loyalty', '🪙 Koin Warga', '/admin/loyalty'],
     ['settings', '⚙️ Pengaturan', '/admin/settings'],
   ];
 

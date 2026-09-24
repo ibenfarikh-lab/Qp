@@ -103,7 +103,7 @@ export default function AdminStoreSettingsPanel({ tokoId, authUser }) {
 
   return (
     <section className="admin-settings-panel">
-      <header className="admin-settings-heading"><div><span>ADMIN • TOKO</span><h1>Pengaturan Toko</h1><p>Atur identitas, tampilan beranda pelanggan, dan kategori dari toko ini.</p></div><a href="/admin" className="admin-settings-link">← Dashboard</a></header>
+      <header className="admin-settings-heading"><div><span>ADMIN • TOKO</span><h1>Pengaturan Toko</h1><p>Atur identitas, tampilan beranda pelanggan, pembayaran, dan kategori dari toko ini.</p></div><a href="/admin" className="admin-settings-link">← Dashboard</a></header>
       {message && <div className="admin-settings-message">✓ {message}</div>}
       {error && <div className="admin-settings-error">{error}</div>}
 

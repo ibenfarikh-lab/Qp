@@ -8,6 +8,12 @@ export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin
   const harga = Number(product?.hargaJual || product?.harga || 0);
   const stok = Number(product?.stok || 0);
   const total = useMemo(() => harga * qty, [harga, qty]);
+  const formatQty = (value) => Number(value).toLocaleString('id-ID', { maximumFractionDigits: 3 });
+  const normalizeQty = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.min(Math.max(Math.round(numeric * 1000) / 1000, 0), Math.max(stok, 0));
+  };
 
   useEffect(() => {
     setQty(1);
@@ -15,11 +21,20 @@ export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin
 
   if (!product) return null;
 
-  const tambahQty = () => setQty((value) => Math.min(value + 1, stok));
-  const kurangiQty = () => setQty((value) => Math.max(value - 1, 1));
+  const tambahQty = () => setQty((value) => normalizeQty(value + 1));
+  const kurangiQty = () => setQty((value) => normalizeQty(Math.max(value - 1, 0.001)));
+  const handleQtyInput = (event) => {
+    const raw = event.target.value;
+    if (raw === '') { setQty(''); return; }
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return;
+    setQty(normalizeQty(numeric));
+  };
 
   const handleAdd = () => {
-    for (let i = 0; i < qty; i += 1) onAdd(product);
+    const finalQty = normalizeQty(qty);
+    if (finalQty <= 0 || finalQty > stok) return;
+    onAdd(product, finalQty);
     onClose();
     setQty(1);
   };
@@ -38,9 +53,18 @@ export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin
           {product.deskripsi ? <p className="detail-description">{product.deskripsi}</p> : null}
 
           <div className="detail-qty" aria-label="Jumlah produk">
-            <button type="button" onClick={kurangiQty} disabled={qty <= 1}>−</button>
-            <b>{qty}</b>
-            <button type="button" onClick={tambahQty} disabled={qty >= stok}>+</button>
+            <button type="button" onClick={kurangiQty} disabled={Number(qty) <= 0.001}>−</button>
+            <input
+              type="number"
+              min="0.001"
+              max={stok}
+              step="0.001"
+              inputMode="decimal"
+              value={qty}
+              onChange={handleQtyInput}
+              aria-label="Jumlah produk"
+            />
+            <button type="button" onClick={tambahQty} disabled={Number(qty) >= stok}>+</button>
           </div>
 
           <div className="detail-total">
@@ -52,7 +76,7 @@ export default function ProductDetailModal({ product, onClose, onAdd, onAskAdmin
             <button className="secondary-btn" type="button" onClick={() => onAskAdmin?.(product)}>
               💬 Tanya Admin
             </button>
-            <button className="primary-btn" disabled={stok <= 0} onClick={handleAdd}>
+            <button className="primary-btn" disabled={stok <= 0 || !Number(qty) || Number(qty) > stok} onClick={handleAdd}>
               {stok <= 0 ? 'Produk habis' : '🛒 Tambah'}
             </button>
           </div>

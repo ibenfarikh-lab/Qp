@@ -1,7 +1,7 @@
 // Lokasi file: components/CartModal.jsx
 'use client';
 
-export default function CartModal({ isOpen, onClose, cart, updateQty, onCheckout }) {
+export default function CartModal({ isOpen, onClose, cart, updateQty, onCheckout, loggedIn = false }) {
   // Kalau modal tidak sedang dibuka, jangan render apa-apa
   if (!isOpen) return null;
 
@@ -37,9 +37,19 @@ export default function CartModal({ isOpen, onClose, cart, updateQty, onCheckout
                   <tr key={item.id}>
                     <td>{item.nama}</td>
                     <td style={{ textAlign: 'center' }}>
-                      <button onClick={() => updateQty(item.id, -1)} style={{ width: '22px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px' }}>-</button>
-                      <span style={{ margin: '0 8px' }}>{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)} style={{ width: '22px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px' }}>+</button>
+                      <button onClick={() => updateQty(item.id, Number(item.qty) - 1)} disabled={Number(item.qty) <= 0.001} style={{ width: '22px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px' }}>-</button>
+                      <input
+                        type="number"
+                        min="0.001"
+                        max={Number(item.stok || 0)}
+                        step="0.001"
+                        inputMode="decimal"
+                        value={item.qty}
+                        onChange={(event) => updateQty(item.id, event.target.value)}
+                        aria-label={`Jumlah ${item.nama || 'produk'}`}
+                        style={{ width: '64px', margin: '0 6px', textAlign: 'center' }}
+                      />
+                      <button onClick={() => updateQty(item.id, Number(item.qty) + 1)} disabled={Number(item.qty) >= Number(item.stok || 0)} style={{ width: '22px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px' }}>+</button>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       Rp {(item.harga * item.qty).toLocaleString('id-ID')}
@@ -62,7 +72,7 @@ export default function CartModal({ isOpen, onClose, cart, updateQty, onCheckout
             disabled={!cart.length}
             style={{ background: cart.length ? '#16a34a' : '#94a3b8', color: 'white', padding: '10px', borderRadius: '6px', width: '100%', marginTop: '10px', border: 'none', fontWeight: 'bold', cursor: cart.length ? 'pointer' : 'not-allowed' }}
           >
-            🛒 Lanjut Pesanan
+            {loggedIn ? '🛒 Lanjut Pesanan' : '🔐 Login untuk Lanjut Pesanan'}
           </button>
         </div>
 

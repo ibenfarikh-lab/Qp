@@ -21,7 +21,7 @@ export default function AuthPanel({ mode = 'login' }) {
   const getReturnTo = () => {
     if (typeof window === 'undefined') return '/customer';
     const candidate = new URLSearchParams(window.location.search).get('returnTo') || '/customer';
-    return candidate.startsWith('/customer') ? candidate : '/customer';
+    return candidate === '/customer' || candidate.startsWith('/customer?') ? candidate : '/customer';
   };
 
   useEffect(() => {
