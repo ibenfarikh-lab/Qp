@@ -1,20 +1,29 @@
 'use client';
 
+import { useEffect } from 'react';
 import AdminNav from '../../components/AdminNav';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AdminSessionProvider, useAdminSession } from '../../components/AdminSessionContext';
 
 function AdminGate({ children }) {
   const session = useAdminSession();
   const pathname = usePathname();
+  const router = useRouter();
   const active = pathname === '/admin' ? 'dashboard' : pathname.startsWith('/admin/products') ? 'products' : pathname.startsWith('/admin/orders') ? 'orders' : pathname.startsWith('/admin/chat') ? 'chat' : pathname.startsWith('/admin/settings') ? 'settings' : 'dashboard';
+
+  useEffect(() => {
+    if (!session.loading && !session.allowed) {
+      const reason = encodeURIComponent(session.error || 'Akses admin diperlukan.');
+      router.replace(`/login?reason=${reason}`);
+    }
+  }, [session.loading, session.allowed, session.error, router]);
 
   if (session.loading) {
     return <main className="admin-dashboard-page"><AdminNav active="dashboard" /><div className="admin-dashboard-empty">Memuat akses admin...</div></main>;
   }
 
   if (!session.allowed) {
-    return <main className="admin-dashboard-page"><div className="admin-dashboard-denied"><h2>Panel Admin</h2><p>{session.error}</p><a className="admin-dashboard-link" href="/login">🔐 Kembali ke Login</a></div></main>;
+    return <main className="admin-dashboard-page"><div className="admin-dashboard-denied"><h2>Memeriksa akses admin...</h2><p>{session.error || 'Mengalihkan ke login.'}</p></div></main>;
   }
 
   return <>
