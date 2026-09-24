@@ -1,5 +1,1 @@
-import AuthPanel from '../../../components/AuthPanel';
-
-export default function RegisterPage() {
-  return <AuthPanel mode="register" />;
-}
+'use client';import{useState}from'react';import{createAccount}from'../../../lib/services/authService';export default function Register(){const[e,setE]=useState(''),[p,setP]=useState(''),[err,setErr]=useState('');return <main className="auth"><form className="card authbox" onSubmit={async x=>{x.preventDefault();try{await createAccount(e,p);location.href='/customer'}catch(a){setErr(a?.message||'Registrasi gagal')}}}><h1>Daftar</h1>{err&&<p>{err}</p>}<input className="input" placeholder="Email" value={e} onChange={x=>setE(x.target.value)}/><br/><br/><input className="input" type="password" placeholder="Password" value={p} onChange={x=>setP(x.target.value)}/><br/><br/><button className="btn primary">Buat akun</button> <a className="btn" href="/login">Kembali</a></form></main>}
