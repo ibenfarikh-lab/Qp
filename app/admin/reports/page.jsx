@@ -1,1 +1,1 @@
-
+export default function Page(){return <><h1>Reports</h1><p className="muted">Fondasi modul reports. Mesin Firebase dan service layer dipertahankan.</p><div className="card">UI baru siap dikembangkan tanpa membawa UI lama.</div></>}
